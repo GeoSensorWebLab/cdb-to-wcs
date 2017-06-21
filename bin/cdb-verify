@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "cdb"
+require "cdbtool/cli"
+
+class CDBVerify < CDBTool::CLI
+  def help_info
+    "Verify a CDB directory has a Tiles directory"
+  end
+end
+
+example = CDBVerify.new
+options = example.parse(ARGV)
+
+# Check to see if CDB has Tiles directory

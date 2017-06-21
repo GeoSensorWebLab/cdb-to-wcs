@@ -42,5 +42,17 @@ module CDBTool
 
       @options
     end
+
+    def validate_cdb!
+      if !Dir.exists?(@cdb_path)
+        puts "CDB directory does not exist!"
+        exit 1
+      end
+
+      if !Dir.exists?(@cdb_path + "/Tiles")
+        puts "CDB Tiles directory does not exist!"
+        exit 1
+      end
+    end
   end
 end

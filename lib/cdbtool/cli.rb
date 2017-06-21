@@ -1,11 +1,10 @@
 module CDBTool
   class CLI
+    attr_accessor :cdb_path
     attr_reader :parser, :options
 
     # Class for command line options
     class CLIOptions
-      attr_accessor :cdb_path
-
       def initialize
       end
 
@@ -16,11 +15,6 @@ module CDBTool
 
         parser.on_tail("-h", "--help", "Show this message") do
           puts parser
-          exit
-        end
-
-        parser.on_tail("--version", "Show version") do
-          puts Version
           exit
         end
       end
@@ -43,6 +37,9 @@ module CDBTool
         @options.define_options(parser, help_info)
         parser.parse!(args)
       end
+
+      @cdb_path = args.shift
+
       @options
     end
   end

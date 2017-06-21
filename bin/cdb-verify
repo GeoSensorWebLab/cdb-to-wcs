@@ -10,7 +10,20 @@ class CDBVerify < CDBTool::CLI
   end
 end
 
-example = CDBVerify.new
-options = example.parse(ARGV)
+validator = CDBVerify.new
+options = validator.parse(ARGV)
 
 # Check to see if CDB has Tiles directory
+cdb_path = validator.cdb_path
+
+if !Dir.exists?(cdb_path)
+  puts "CDB directory does not exist!"
+  exit 1
+end
+
+if !Dir.exists?(cdb_path + "/Tiles")
+  puts "CDB Tiles directory does not exist!"
+  exit 1
+end
+
+puts "CDB directory appears to be okay."

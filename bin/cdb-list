@@ -13,70 +13,13 @@ end
 listing = CDBList.new
 options = listing.parse(ARGV)
 
-cdb_path = listing.cdb_path
-
-# Create a hash object for holding the directory id (dir name), and path
-def make_object(dir, opts = {})
-  {
-    id: File.basename(dir),
-    path: dir
-  }.merge(opts)
-end
-
-def scan_coverages(dir)
-  Dir.glob([dir + "/*.tif", dir + "/*.jp2"]).collect do |entry|
-    make_object(entry)
-  end
-end
-
-def scan_urefs(dir)
-  Dir.glob(dir + "/U*").collect do |entry|
-    make_object(entry, { files: scan_coverages(entry) })
-  end
-end
-
-# Look for LOD directories, and UREF directories inside those
-def scan_lods(dir)
-  Dir.glob(dir + "/L*").collect do |entry|
-    make_object(entry, { urefs: scan_urefs(entry) })
-  end
-end
-
-# Collect info
-latcells = Dir.glob(cdb_path + "/Tiles/*").collect do |entry|
-  make_object(entry)
-end
-
-geocells = latcells.collect do |cell|
-  Dir.glob(cell[:path] + "/*").collect do |entry|
-    make_object(entry, { parent: cell })
-  end
-end.flatten
-
-geocells.each do |cell|
-  cell[:features] = Dir.glob(cell[:path] + "/*").collect do |entry|
-    make_object(entry, { lods: scan_lods(entry) })
-  end
-end
-
-
 # Print info
-puts "CDB Tiles"
-puts "========="
-puts "Features:"
+cdb = CDB::CDB.new(listing.cdb_path)
 
-geocells.each do |cell|
-  puts "  #{cell[:parent][:id]}-#{cell[:id]}"
 
-  cell[:features].each do |feature|
-    puts "    #{feature[:id]} (#{feature[:lods].count})"
-
-    feature[:lods].each do |lod|
-      puts "      #{lod[:id]} (#{lod[:urefs].count})"
-
-      lod[:urefs].each do |uref|
-        puts "          #{uref[:id]} (#{uref[:files].count})"
-      end
-    end
-  end
+cdb.datasets.each do |dataset|
+  puts "  #{dataset.id}"
+  puts "    LODs: #{dataset.lods.count}"
+  puts "    UREFs: #{dataset.urefs.count}"
+  puts "    Files: #{dataset.all_files.count}"
 end

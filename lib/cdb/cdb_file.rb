@@ -8,8 +8,8 @@ module CDB
       @path = path
     end
 
-    def entries
-      @entries ||= Dir.glob(@path + "/*")
+    def entries(filter = "/*")
+      Dir.glob(@path + filter)
     end
   end
 end

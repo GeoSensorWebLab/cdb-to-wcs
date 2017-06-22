@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "cdb"
+require "cdbtool/cli"
+require "mixlib/shellout"
+
+class CDBMosaic < CDBTool::CLI
+  def help_info
+    "Mosaic coverages in a CDB"
+  end
+end
+
+mosaic = CDBMosaic.new
+options = mosaic.parse(ARGV)
+
+# Print info
+cdb = CDB::CDB.new(mosaic.cdb_path)
+
+# Create temp dir for merged mosaics
+merged_dir = mosaic.cdb_path + "_temp"
+
+if !Dir.exists?(merged_dir)
+  Dir.mkdir(merged_dir)
+end
+
+# Create index
+mosaic_files = {}
+
+cdb.datasets.each do |dataset|
+  puts dataset.geocell + "-" + dataset.id
+
+  # pick highest LOD, or LC if only LOD
+  all_lods = dataset.lods.sort_by { |lod| lod.id }
+  lod = all_lods[-2] || all_lods[-1]
+
+  # mosaic files in each UREF
+  uref_geotiffs = []
+  uref_jp2ks = []
+
+  lod.urefs.each do |uref|
+    uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
+    output = File.join(merged_dir, uref_group + ".tif")
+
+    # check for GeoTIFFs or JP2000 files
+    geotiffs = uref.entries("/*.tif")
+    if geotiffs.count > 0
+      puts "geotiffs: #{geotiffs.count}"
+
+      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{geotiffs.join(" ")}")
+      uref_geotiffs.push(output)
+
+      if !File.exists?(output)
+        merge.run_command
+        puts merge.stdout
+      end
+    end
+
+    jp2ks = uref.entries("/*.jp2")
+    if jp2ks.count > 0
+      puts "jpeg2000s: #{jp2ks.count}"
+
+      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{jp2ks.join(" ")}")
+      uref_jp2ks.push(output)
+
+      if !File.exists?(output)
+        merge.run_command
+        puts merge.stdout
+        puts merge.stderr
+      end
+    end
+
+  end
+end
+

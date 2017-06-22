@@ -6,6 +6,12 @@ module CDB
       @all_files ||= urefs.collect { |uref| uref.entries }.flatten
     end
 
+    def geocell
+      lon = File.basename(File.dirname(@path))
+      lat = File.basename(File.dirname(File.dirname(@path)))
+      "#{lat}-#{lon}"
+    end
+
     def lods
       @lods ||= scan_lods
     end

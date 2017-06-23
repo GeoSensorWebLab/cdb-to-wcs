@@ -4,6 +4,7 @@ require "bundler/setup"
 require "cdb"
 require "cdbtool/cli"
 require "mixlib/shellout"
+require "fileutils"
 
 class CDBMosaic < CDBTool::CLI
   def help_info
@@ -14,19 +15,21 @@ end
 mosaic = CDBMosaic.new
 options = mosaic.parse(ARGV)
 
-# Print info
 cdb = CDB::CDB.new(mosaic.cdb_path)
 
 # Create temp dir for merged mosaics
 merged_dir = mosaic.cdb_path + "_temp"
 
-if !Dir.exists?(merged_dir)
-  Dir.mkdir(merged_dir)
+# Create a directory, but do nothing if it already exists
+def mkdirp(dir)
+  if !Dir.exists?(dir)
+    Dir.mkdir(dir)
+  end
 end
 
-# Create index
-mosaic_files = {}
+mkdirp(merged_dir)
 
+# Create index
 cdb.datasets.each do |dataset|
   puts dataset.geocell + "-" + dataset.id
 
@@ -39,37 +42,87 @@ cdb.datasets.each do |dataset|
   uref_jp2ks = []
 
   lod.urefs.each do |uref|
+    puts "\tUREF: #{uref.id}"
     uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
-    output = File.join(merged_dir, uref_group + ".tif")
+    output = File.join(merged_dir, "UREFs", uref_group + ".tif")
+    mkdirp(File.join(merged_dir, "UREFs"))
 
     # check for GeoTIFFs or JP2000 files
     geotiffs = uref.entries("/*.tif")
     if geotiffs.count > 0
-      puts "geotiffs: #{geotiffs.count}"
+      puts "\t\tgeotiffs: #{geotiffs.count}"
 
       merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{geotiffs.join(" ")}")
       uref_geotiffs.push(output)
 
-      if !File.exists?(output)
-        merge.run_command
-        puts merge.stdout
-      end
-    end
-
-    jp2ks = uref.entries("/*.jp2")
-    if jp2ks.count > 0
-      puts "jpeg2000s: #{jp2ks.count}"
-
-      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{jp2ks.join(" ")}")
-      uref_jp2ks.push(output)
-
-      if !File.exists?(output)
+      if File.exists?(output)
+        puts "\t\tMerged file already exists, skipping."
+      else
         merge.run_command
         puts merge.stdout
         puts merge.stderr
       end
     end
 
+    jp2ks = uref.entries("/*.jp2")
+    if jp2ks.count > 0
+      puts "\t\tjpeg2000s: #{jp2ks.count}"
+
+      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{jp2ks.join(" ")}")
+      uref_jp2ks.push(output)
+
+      if File.exists?(output)
+        puts "\t\tMerged file already exists, skipping."
+      else
+        merge.run_command
+        puts merge.stdout
+        puts merge.stderr
+      end
+    end
+
+    if geotiffs.count == 0 && jp2ks.count == 0
+      puts "\t\tNo GeoTIFFs or JPEG2000s found."
+    end
+  end
+
+  # Mosaic every UREF under an LOD into a single image
+  # (Does this work if both geotiffs and jp2s are present?)
+  dataset_group = [dataset.geocell, dataset.id, lod.id].join("-")
+  dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
+  mkdirp(File.join(merged_dir, "datasets"))
+
+  if uref_geotiffs.count == 1
+    # If only one TIFF in an LOD, then link it instead to save space
+    FileUtils.ln(uref_geotiffs[0], dataset_output)
+  elsif uref_geotiffs.count > 1
+    puts "\t\tmerging geotiffs: #{uref_geotiffs.count}"
+
+    merge = Mixlib::ShellOut.new("gdal_merge.py -o #{dataset_output} -n 0 #{uref_geotiffs.join(" ")}")
+
+    if File.exists?(dataset_output)
+        puts "\t\tMerged file already exists, skipping."
+      else
+        merge.run_command
+        puts merge.stdout
+        puts merge.stderr
+      end
+  end
+
+  if uref_jp2ks.count == 1
+    # If only one TIFF in an LOD, then link it instead to save space
+    FileUtils.ln(uref_jp2ks[0], dataset_output)
+  elsif uref_jp2ks.count > 1
+    puts "\t\tmerging jp2s: #{uref_jp2ks.count}"
+
+    merge = Mixlib::ShellOut.new("gdal_merge.py -o #{dataset_output} -n 0 #{uref_jp2ks.join(" ")}")
+
+    if File.exists?(dataset_output)
+        puts "\t\tMerged file already exists, skipping."
+      else
+        merge.run_command
+        puts merge.stdout
+        puts merge.stderr
+      end
   end
 end
 

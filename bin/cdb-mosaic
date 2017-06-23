@@ -27,15 +27,35 @@ def mkdirp(dir)
   end
 end
 
+# Create a linked file to save space when only a single file is mosaiced
+def link_output(input_file, output_file)
+  if File.exists?(input_file) && !File.exists?(output_file)
+    puts "Linking source #{input_file} to #{output_file}"
+    FileUtils.ln(input_file, output_file)
+  end
+end
+
+# Merge input_files into output_file using GDAL
+# Don't do anything if output_file already exists
+def gdal_merge(input_files, output_file)
+  return nil if input_files.length == 0
+  return link_output(input_files[0], output_file) if input_files.length == 1
+  merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output_file} -n 0 #{input_files.join(" ")}")
+
+  if !File.exists?(output_file)
+    merge.run_command
+    puts merge.stdout
+    puts merge.stderr
+  end
+end
+
 mkdirp(merged_dir)
 
-# Create index
 cdb.datasets.each do |dataset|
   puts dataset.geocell + "-" + dataset.id
 
   # pick highest LOD, or LC if only LOD
-  all_lods = dataset.lods.sort_by { |lod| lod.id }
-  lod = all_lods[-2] || all_lods[-1]
+  lod = dataset.highest_lod
 
   # mosaic files in each UREF
   uref_geotiffs = []
@@ -52,32 +72,16 @@ cdb.datasets.each do |dataset|
     if geotiffs.count > 0
       puts "\t\tgeotiffs: #{geotiffs.count}"
 
-      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{geotiffs.join(" ")}")
+      gdal_merge(geotiffs, output)
       uref_geotiffs.push(output)
-
-      if File.exists?(output)
-        puts "\t\tMerged file already exists, skipping."
-      else
-        merge.run_command
-        puts merge.stdout
-        puts merge.stderr
-      end
     end
 
     jp2ks = uref.entries("/*.jp2")
     if jp2ks.count > 0
       puts "\t\tjpeg2000s: #{jp2ks.count}"
 
-      merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output} -n 0 #{jp2ks.join(" ")}")
+      gdal_merge(jp2ks, output)
       uref_jp2ks.push(output)
-
-      if File.exists?(output)
-        puts "\t\tMerged file already exists, skipping."
-      else
-        merge.run_command
-        puts merge.stdout
-        puts merge.stderr
-      end
     end
 
     if geotiffs.count == 0 && jp2ks.count == 0
@@ -87,42 +91,28 @@ cdb.datasets.each do |dataset|
 
   # Mosaic every UREF under an LOD into a single image
   # (Does this work if both geotiffs and jp2s are present?)
-  dataset_group = [dataset.geocell, dataset.id, lod.id].join("-")
+  dataset_group = [dataset.geocell, dataset.id].join("-")
   dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
   mkdirp(File.join(merged_dir, "datasets"))
 
-  if uref_geotiffs.count == 1
-    # If only one TIFF in an LOD, then link it instead to save space
-    FileUtils.ln(uref_geotiffs[0], dataset_output)
-  elsif uref_geotiffs.count > 1
-    puts "\t\tmerging geotiffs: #{uref_geotiffs.count}"
-
-    merge = Mixlib::ShellOut.new("gdal_merge.py -o #{dataset_output} -n 0 #{uref_geotiffs.join(" ")}")
-
-    if File.exists?(dataset_output)
-        puts "\t\tMerged file already exists, skipping."
-      else
-        merge.run_command
-        puts merge.stdout
-        puts merge.stderr
-      end
-  end
-
-  if uref_jp2ks.count == 1
-    # If only one TIFF in an LOD, then link it instead to save space
-    FileUtils.ln(uref_jp2ks[0], dataset_output)
-  elsif uref_jp2ks.count > 1
-    puts "\t\tmerging jp2s: #{uref_jp2ks.count}"
-
-    merge = Mixlib::ShellOut.new("gdal_merge.py -o #{dataset_output} -n 0 #{uref_jp2ks.join(" ")}")
-
-    if File.exists?(dataset_output)
-        puts "\t\tMerged file already exists, skipping."
-      else
-        merge.run_command
-        puts merge.stdout
-        puts merge.stderr
-      end
-  end
+  gdal_merge(uref_geotiffs, dataset_output)
+  gdal_merge(uref_jp2ks, dataset_output)
 end
 
+# Join datasets from different GeoCells
+final_dir = File.join(merged_dir, "final")
+mkdirp(final_dir)
+
+cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do |group|
+  dataset_id = group.shift
+  final_output = File.join(final_dir, dataset_id + ".tif")
+
+  input_files = group.shift.collect do |dataset|
+    dataset_group = [dataset.geocell, dataset.id].join("-")
+    File.join(merged_dir, "datasets", dataset_group + ".tif")
+  end
+
+  gdal_merge(input_files, final_output)
+end
+
+puts "Output in #{final_dir}"

@@ -22,6 +22,12 @@ Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB
 
 Checks that the CDB has a Tiles directory.
 
+### geoserver-setup
+
+    $ ruby -Ilib bin/geoserver-setup path/to/CDB_temp/final http://user:password@geoserver:port/geoserver
+
+Logs into GeoServer, creates a new workspace, creates a coverage store for every raster in the final directory, then creates coverage layers for each raster. If there is an error, it quits and prints an error message. Will delete the workspace if import fails.
+
 ## Authors
 
 James Badger

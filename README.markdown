@@ -4,6 +4,14 @@ Reads a CDB for coverages, mosaics them into temporary files, imports them into 
 
 ## Usage
 
+### cdb-addo
+
+Uses GDAL to add overviews to GeoTIFFs in given directory. Run this after `cdb-mosaic`.
+
+    $ ruby -Ilib bin/cdb-addo path/to/CDB_temp/final
+
+Overviews will make the GeoTIFFs load faster in GeoServer WCS.
+
 ### cdb-list
 
     $ ruby -Ilib bin/cdb-list path/to/CDB

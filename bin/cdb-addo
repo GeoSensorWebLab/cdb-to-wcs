@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "mixlib/shellout"
+
+def print_usage
+  puts "Usage: cdb-addo <final tiles path>"
+  puts "Adds overviews to rasters in the directory using GDAL"
+end
+
+if ARGV.count < 1
+  print_usage
+  exit 1
+end
+
+path = ARGV[0]
+
+if !File.exists?(path) || !File.directory?(path)
+  print_usage
+  exit 1
+end
+
+def t(num)
+  num.round(2)
+end
+
+def human_size(bytes)
+  if bytes < 1000
+    return "#{bytes} bytes"
+  elsif bytes < 1000.0 ** 2
+    return "#{t(bytes/1000.0)} kilobytes"
+  elsif bytes < 1000 ** 3
+    return "#{t(bytes/1000.0**2)} megabytes"
+  elsif bytes < 1000 ** 4
+    return "#{t(bytes/1000.0**3)} gigabytes"
+  else
+    return "#{bytes}"
+  end
+end
+
+Dir.glob(path + "/*.tif").each do |raster|
+  puts "Adding overviews to #{raster}"
+  start_size = human_size(File.size(raster))
+
+  addo = Mixlib::ShellOut.new("gdaladdo \"#{raster}\" 2 4 8 16")
+
+  addo.run_command
+  puts addo.stdout
+  puts addo.stderr
+
+  end_size = human_size(File.size(raster))
+  puts "Done (#{start_size} => #{end_size})"
+end

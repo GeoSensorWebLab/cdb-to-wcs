@@ -35,18 +35,35 @@ def link_output(input_file, output_file)
   end
 end
 
-# Merge input_files into output_file using GDAL
-# Don't do anything if output_file already exists
-def gdal_merge(input_files, output_file)
+def gdal_merge(input_files, output_file, options)
   return nil if input_files.length == 0
   return link_output(input_files[0], output_file) if input_files.length == 1
-  merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output_file} -n 0 #{input_files.join(" ")}")
+  merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output_file} #{options} -n 0 #{input_files.join(" ")}", timeout: 7200)
 
   if !File.exists?(output_file)
+    puts "Merging #{input_files.count} files..."
     merge.run_command
     puts merge.stdout
     puts merge.stderr
+  else
+    puts "Skipping merge, output already exists."
   end
+end
+
+# Merge input_files into output_file using GDAL
+# and use compression for non-lossy rasters
+# Don't do anything if output_file already exists
+def gdal_merge_raster(input_files, output_file)
+  output_options = %w(TILED=YES COMPRESS=LZMA NUM_THREADS=ALL_CPUS BIGTIFF=YES).collect {|x| "-co #{x}" }.join(" ")
+  gdal_merge(input_files, output_file, output_options)
+end
+
+# Merge input_files into output_file using GDAL
+# and use compression for lossy rasters
+# Don't do anything if output_file already exists
+def gdal_merge_imagery(input_files, output_file)
+  output_options = %w(TILED=YES COMPRESS=JPEG BIGTIFF=YES).collect {|x| "-co #{x}" }.join(" ")
+  gdal_merge(input_files, output_file, output_options)
 end
 
 mkdirp(merged_dir)
@@ -72,7 +89,7 @@ cdb.datasets.each do |dataset|
     if geotiffs.count > 0
       puts "\t\tgeotiffs: #{geotiffs.count}"
 
-      gdal_merge(geotiffs, output)
+      gdal_merge_raster(geotiffs, output)
       uref_geotiffs.push(output)
     end
 
@@ -80,7 +97,7 @@ cdb.datasets.each do |dataset|
     if jp2ks.count > 0
       puts "\t\tjpeg2000s: #{jp2ks.count}"
 
-      gdal_merge(jp2ks, output)
+      gdal_merge_imagery(jp2ks, output)
       uref_jp2ks.push(output)
     end
 
@@ -95,8 +112,8 @@ cdb.datasets.each do |dataset|
   dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
   mkdirp(File.join(merged_dir, "datasets"))
 
-  gdal_merge(uref_geotiffs, dataset_output)
-  gdal_merge(uref_jp2ks, dataset_output)
+  gdal_merge_raster(uref_geotiffs, dataset_output)
+  gdal_merge_imagery(uref_jp2ks, dataset_output)
 end
 
 # Join datasets from different GeoCells
@@ -112,7 +129,12 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     File.join(merged_dir, "datasets", dataset_group + ".tif")
   end
 
-  gdal_merge(input_files, final_output)
+  # Use different compression for imagery (004)
+  if dataset_id.include?("004")
+    gdal_merge_imagery(input_files, final_output)
+  else
+    gdal_merge_raster(input_files, final_output)
+  end
 end
 
 puts "Output in #{final_dir}"

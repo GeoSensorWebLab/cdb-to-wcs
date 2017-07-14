@@ -42,64 +42,71 @@ def gdal_merge(input_files, output_file)
 end
 
 CDBTool.mkdirp(merged_dir)
-
-cdb.datasets.each do |dataset|
-  puts dataset.geocell + "-" + dataset.id
-
-  # pick highest LOD, or LC if only LOD
-  lod = dataset.highest_lod
-
-  # mosaic files in each UREF
-  uref_geotiffs = []
-  uref_jp2ks = []
-
-  lod.urefs.each do |uref|
-    puts "\tUREF: #{uref.id}"
-    uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
-    output = File.join(merged_dir, "UREFs", uref_group + ".tif")
-    CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
-
-    # check for GeoTIFFs or JP2000 files
-    geotiffs = uref.entries("/*.tif")
-    if geotiffs.count > 0
-      puts "\t\tgeotiffs: #{geotiffs.count}"
-
-      gdal_merge(geotiffs, output)
-      uref_geotiffs.push(output)
-    end
-
-    jp2ks = uref.entries("/*.jp2")
-    if jp2ks.count > 0
-      puts "\t\tjpeg2000s: #{jp2ks.count}"
-
-      gdal_merge(jp2ks, output)
-      uref_jp2ks.push(output)
-    end
-
-    if geotiffs.count == 0 && jp2ks.count == 0
-      puts "\t\tNo GeoTIFFs or JPEG2000s found."
-    end
-  end
-
-  # Mosaic every UREF under an LOD into a single image
-  # (Does this work if both geotiffs and jp2s are present?)
-  dataset_group = [dataset.geocell, dataset.id].join("-")
-  dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
-  CDBTool.mkdirp(File.join(merged_dir, "datasets"))
-
-  gdal_merge(uref_geotiffs, dataset_output)
-  gdal_merge(uref_jp2ks, dataset_output)
-end
-
-# Join datasets from different GeoCells
 final_dir = File.join(merged_dir, "final")
 CDBTool.mkdirp(final_dir)
 
+# Sort groups by string name, then chunk them based on the string id. This
+# groups datasets with the same name from different GeoCells.
+# Group - Array
+# 0 => dataset ID
+# 1 => Array of datasets
 cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do |group|
-  dataset_id = group.shift
+  dataset_id = group.at(0)
+  datasets = group.at(1)
+
+  # Merge UREF data in each dataset, only selecting rasters from the highest
+  # LOD in each dataset.
+  datasets.each do |dataset|
+    puts dataset.geocell + "-" + dataset.id
+
+    # pick highest LOD, or LC if only LOD
+    lod = dataset.highest_lod
+
+    # mosaic files in each UREF
+    uref_geotiffs = []
+    uref_jp2ks = []
+
+    lod.urefs.each do |uref|
+      puts "\tUREF: #{uref.id}"
+      uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
+      output = File.join(merged_dir, "UREFs", uref_group + ".tif")
+      CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
+
+      # check for GeoTIFFs or JP2000 files
+      geotiffs = uref.entries("/*.tif")
+      if geotiffs.count > 0
+        puts "\t\tgeotiffs: #{geotiffs.count}"
+
+        gdal_merge(geotiffs, output)
+        uref_geotiffs.push(output)
+      end
+
+      jp2ks = uref.entries("/*.jp2")
+      if jp2ks.count > 0
+        puts "\t\tjpeg2000s: #{jp2ks.count}"
+
+        gdal_merge(jp2ks, output)
+        uref_jp2ks.push(output)
+      end
+
+      if geotiffs.count == 0 && jp2ks.count == 0
+        puts "\t\tNo GeoTIFFs or JPEG2000s found."
+      end
+    end
+
+    # Mosaic every UREF under an LOD into a single image
+    # (Does this work if both geotiffs and jp2s are present?)
+    dataset_group = [dataset.geocell, dataset.id].join("-")
+    dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
+    CDBTool.mkdirp(File.join(merged_dir, "datasets"))
+
+    gdal_merge(uref_geotiffs, dataset_output)
+    gdal_merge(uref_jp2ks, dataset_output)
+  end
+
   final_output = File.join(final_dir, dataset_id + ".tif")
 
-  input_files = group.shift.collect do |dataset|
+  input_files = datasets.collect do |dataset|
     dataset_group = [dataset.geocell, dataset.id].join("-")
     File.join(merged_dir, "datasets", dataset_group + ".tif")
   end

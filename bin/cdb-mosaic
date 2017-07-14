@@ -37,7 +37,7 @@ def gdal_merge(input_files, output_file)
   else
     puts command
     merge.run_command
-    log("#{output_file},#{File.size(output_file)},#{merge.execution_time}")
+    log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
   end
 end
 

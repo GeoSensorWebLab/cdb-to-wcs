@@ -54,6 +54,13 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
   dataset_id = group.at(0)
   datasets = group.at(1)
 
+  dataset_filetype = case dataset_id
+  when "004_Imagery"
+    "jp2"
+  else
+    "tif"
+  end
+
   # Merge UREF data in each dataset, only selecting rasters from the highest
   # LOD in each dataset.
   datasets.each do |dataset|
@@ -63,34 +70,20 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     lod = dataset.highest_lod
 
     # mosaic files in each UREF
-    uref_geotiffs = []
-    uref_jp2ks = []
-
-    lod.urefs.each do |uref|
+    uref_rasters = lod.urefs.collect do |uref|
       puts "\tUREF: #{uref.id}"
       uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
-      output = File.join(merged_dir, "UREFs", uref_group + ".tif")
+      output_file = File.join(merged_dir, "UREFs", uref_group + ".tif")
       CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
 
-      # check for GeoTIFFs or JP2000 files
-      geotiffs = uref.entries("/*.tif")
-      if geotiffs.count > 0
-        puts "\t\tgeotiffs: #{geotiffs.count}"
-
-        gdal_merge(geotiffs, output)
-        uref_geotiffs.push(output)
-      end
-
-      jp2ks = uref.entries("/*.jp2")
-      if jp2ks.count > 0
-        puts "\t\tjpeg2000s: #{jp2ks.count}"
-
-        gdal_merge(jp2ks, output)
-        uref_jp2ks.push(output)
-      end
-
-      if geotiffs.count == 0 && jp2ks.count == 0
-        puts "\t\tNo GeoTIFFs or JPEG2000s found."
+      rasters = uref.entries("/*.#{dataset_filetype}")
+      if rasters.count == 0
+        puts "\t\tNo rasters found."
+        nil
+      else
+        puts "\t\trasters: #{rasters.count}"
+        gdal_merge(rasters, output_file)
+        output_file
       end
     end
 
@@ -100,8 +93,11 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
     CDBTool.mkdirp(File.join(merged_dir, "datasets"))
 
-    gdal_merge(uref_geotiffs, dataset_output)
-    gdal_merge(uref_jp2ks, dataset_output)
+    if uref_rasters.compact.count == 0
+      puts "\tNo UREF rasters to merge."
+    else
+      gdal_merge(uref_rasters.compact, dataset_output)
+    end
   end
 
   final_output = File.join(final_dir, dataset_id + ".tif")
@@ -111,7 +107,9 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     File.join(merged_dir, "datasets", dataset_group + ".tif")
   end
 
-  gdal_merge(input_files, final_output)
+  if input_files.length > 0
+    gdal_merge(input_files, final_output)
+  end
 end
 
 puts "Output in #{final_dir}"

@@ -40,12 +40,14 @@ end
 def gdal_merge(input_files, output_file)
   return nil if input_files.length == 0
   return link_output(input_files[0], output_file) if input_files.length == 1
-  merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output_file} -n 0 #{input_files.join(" ")}")
+  command = "gdal_merge.py -o #{output_file} -n 0 #{input_files.join(" ")}"
+  merge = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)
 
-  if !File.exists?(output_file)
+  if File.exists?(output_file)
+    puts "Output exists, skipping merge command."
+  else
+    puts command
     merge.run_command
-    puts merge.stdout
-    puts merge.stderr
   end
 end
 

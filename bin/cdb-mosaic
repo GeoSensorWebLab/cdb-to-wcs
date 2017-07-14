@@ -11,6 +11,11 @@ class CDBMosaic < CDBTool::CLI
   end
 end
 
+$LOGFILE = "run.log"
+def log(msg)
+  IO.write($LOGFILE, "#{Time.now}, #{msg}\n", mode: 'a')
+end
+
 mosaic = CDBMosaic.new
 options = mosaic.parse(ARGV)
 
@@ -32,6 +37,7 @@ def gdal_merge(input_files, output_file)
   else
     puts command
     merge.run_command
+    log("#{output_file},#{File.size(output_file)},#{merge.execution_time}")
   end
 end
 

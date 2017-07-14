@@ -8,7 +8,7 @@ module CDBTool
   def self.link_output(input_file, output_file)
     if File.exists?(input_file) && !File.exists?(output_file)
       puts "Linking source #{input_file} to #{output_file}"
-      FileUtils.ln(input_file, output_file)
+      FileUtils.ln_s(input_file, output_file)
     end
   end
 

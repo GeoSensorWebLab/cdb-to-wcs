@@ -26,10 +26,17 @@ merged_dir = mosaic.cdb_path + "_temp"
 
 # Merge input_files into output_file using GDAL
 # Don't do anything if output_file already exists
-def gdal_merge(input_files, output_file)
+def gdal_merge(input_files, output_file, merge_strategy = :lossless)
   return nil if input_files.length == 0
   return CDBTool.link_output(input_files[0], output_file) if input_files.length == 1
-  command = "gdal_merge.py -o #{output_file} -n 0 #{input_files.join(" ")}"
+
+  command = case merge_strategy
+  when :lossless
+    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=LZW -co NUM_THREADS=ALL_CPUS -co TILED=YES -n 0 #{input_files.join(" ")}"
+  when :lossy
+    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=JPEG -co TILED=YES #{input_files.join(" ")}"
+  end
+
   merge = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)
 
   if File.exists?(output_file)
@@ -54,11 +61,13 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
   dataset_id = group.at(0)
   datasets = group.at(1)
 
-  dataset_filetype = case dataset_id
+  case dataset_id
   when "004_Imagery"
-    "jp2"
+    dataset_filetype = "jp2"
+    merge_strategy = :lossy
   else
-    "tif"
+    dataset_filetype = "tif"
+    merge_strategy = :lossless
   end
 
   # Merge UREF data in each dataset, only selecting rasters from the highest
@@ -82,7 +91,7 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
         nil
       else
         puts "\t\trasters: #{rasters.count}"
-        gdal_merge(rasters, output_file)
+        gdal_merge(rasters, output_file, merge_strategy)
         output_file
       end
     end
@@ -96,7 +105,7 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     if uref_rasters.compact.count == 0
       puts "\tNo UREF rasters to merge."
     else
-      gdal_merge(uref_rasters.compact, dataset_output)
+      gdal_merge(uref_rasters.compact, dataset_output, merge_strategy)
     end
   end
 
@@ -108,7 +117,7 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
   end
 
   if input_files.length > 0
-    gdal_merge(input_files, final_output)
+    gdal_merge(input_files, final_output, merge_strategy)
   end
 end
 

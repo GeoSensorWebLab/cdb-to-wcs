@@ -4,7 +4,6 @@ require "bundler/setup"
 require "cdb"
 require "cdbtool"
 require "mixlib/shellout"
-require "fileutils"
 
 class CDBMosaic < CDBTool::CLI
   def help_info
@@ -12,128 +11,108 @@ class CDBMosaic < CDBTool::CLI
   end
 end
 
-mosaic = CDBMosaic.new
-options = mosaic.parse(ARGV)
+$mosaic = CDBMosaic.new
+options = $mosaic.parse(ARGV)
 
-cdb = CDB::CDB.new(mosaic.cdb_path)
+cdb = CDB::CDB.new($mosaic.cdb_path)
 
 # Create temp dir for merged mosaics
-merged_dir = mosaic.cdb_path + "_temp"
+merged_dir = $mosaic.cdb_path + "_temp"
 
-# Create a directory, but do nothing if it already exists
-def mkdirp(dir)
-  if !Dir.exists?(dir)
-    Dir.mkdir(dir)
-  end
-end
-
-# Create a linked file to save space when only a single file is mosaiced
-def link_output(input_file, output_file)
-  if File.exists?(input_file) && !File.exists?(output_file)
-    puts "Linking source #{input_file} to #{output_file}"
-    FileUtils.ln(input_file, output_file)
-  end
-end
-
-def gdal_merge(input_files, output_file, options)
+# Merge input_files into output_file using GDAL
+# Don't do anything if output_file already exists
+def gdal_merge(input_files, output_file, merge_strategy = :lossless)
   return nil if input_files.length == 0
-  return link_output(input_files[0], output_file) if input_files.length == 1
-  merge = Mixlib::ShellOut.new("gdal_merge.py -o #{output_file} #{options} -n 0 #{input_files.join(" ")}", timeout: 7200)
+  return CDBTool.link_output(input_files[0], output_file) if input_files.length == 1
 
-  if !File.exists?(output_file)
-    puts "Merging #{input_files.count} files..."
-    merge.run_command
-    puts merge.stdout
-    puts merge.stderr
+  command = case merge_strategy
+  when :lossless
+    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=LZW -co NUM_THREADS=ALL_CPUS -co TILED=YES -n 0 #{input_files.join(" ")}"
+  when :lossy
+    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=JPEG -co TILED=YES #{input_files.join(" ")}"
+  end
+
+  merge = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)
+
+  if File.exists?(output_file)
+    puts "Output exists, skipping merge command."
   else
-    puts "Skipping merge, output already exists."
+    puts command
+    merge.run_command
+    $mosaic.log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
   end
 end
 
-# Merge input_files into output_file using GDAL
-# and use compression for non-lossy rasters
-# Don't do anything if output_file already exists
-def gdal_merge_raster(input_files, output_file)
-  output_options = %w(TILED=YES COMPRESS=LZMA NUM_THREADS=ALL_CPUS BIGTIFF=YES).collect {|x| "-co #{x}" }.join(" ")
-  gdal_merge(input_files, output_file, output_options)
-end
-
-# Merge input_files into output_file using GDAL
-# and use compression for lossy rasters
-# Don't do anything if output_file already exists
-def gdal_merge_imagery(input_files, output_file)
-  output_options = %w(TILED=YES COMPRESS=JPEG BIGTIFF=YES).collect {|x| "-co #{x}" }.join(" ")
-  gdal_merge(input_files, output_file, output_options)
-end
-
-mkdirp(merged_dir)
-
-cdb.datasets.each do |dataset|
-  puts dataset.geocell + "-" + dataset.id
-
-  # pick highest LOD, or LC if only LOD
-  lod = dataset.highest_lod
-
-  # mosaic files in each UREF
-  uref_geotiffs = []
-  uref_jp2ks = []
-
-  lod.urefs.each do |uref|
-    puts "\tUREF: #{uref.id}"
-    uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
-    output = File.join(merged_dir, "UREFs", uref_group + ".tif")
-    mkdirp(File.join(merged_dir, "UREFs"))
-
-    # check for GeoTIFFs or JP2000 files
-    geotiffs = uref.entries("/*.tif")
-    if geotiffs.count > 0
-      puts "\t\tgeotiffs: #{geotiffs.count}"
-
-      gdal_merge_raster(geotiffs, output)
-      uref_geotiffs.push(output)
-    end
-
-    jp2ks = uref.entries("/*.jp2")
-    if jp2ks.count > 0
-      puts "\t\tjpeg2000s: #{jp2ks.count}"
-
-      gdal_merge_imagery(jp2ks, output)
-      uref_jp2ks.push(output)
-    end
-
-    if geotiffs.count == 0 && jp2ks.count == 0
-      puts "\t\tNo GeoTIFFs or JPEG2000s found."
-    end
-  end
-
-  # Mosaic every UREF under an LOD into a single image
-  # (Does this work if both geotiffs and jp2s are present?)
-  dataset_group = [dataset.geocell, dataset.id].join("-")
-  dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
-  mkdirp(File.join(merged_dir, "datasets"))
-
-  gdal_merge_raster(uref_geotiffs, dataset_output)
-  gdal_merge_imagery(uref_jp2ks, dataset_output)
-end
-
-# Join datasets from different GeoCells
+CDBTool.mkdirp(merged_dir)
 final_dir = File.join(merged_dir, "final")
-mkdirp(final_dir)
+CDBTool.mkdirp(final_dir)
 
+# Sort groups by string name, then chunk them based on the string id. This
+# groups datasets with the same name from different GeoCells.
+# Group - Array
+# 0 => dataset ID
+# 1 => Array of datasets
 cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do |group|
-  dataset_id = group.shift
+  dataset_id = group.at(0)
+  datasets = group.at(1)
+
+  case dataset_id
+  when "004_Imagery"
+    dataset_filetype = "jp2"
+    merge_strategy = :lossy
+  else
+    dataset_filetype = "tif"
+    merge_strategy = :lossless
+  end
+
+  # Merge UREF data in each dataset, only selecting rasters from the highest
+  # LOD in each dataset.
+  datasets.each do |dataset|
+    puts dataset.geocell + "-" + dataset.id
+
+    # pick highest LOD, or LC if only LOD
+    lod = dataset.highest_lod
+
+    # mosaic files in each UREF
+    uref_rasters = lod.urefs.collect do |uref|
+      puts "\tUREF: #{uref.id}"
+      uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
+      output_file = File.join(merged_dir, "UREFs", uref_group + ".tif")
+      CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
+
+      rasters = uref.entries("/*.#{dataset_filetype}")
+      if rasters.count == 0
+        puts "\t\tNo rasters found."
+        nil
+      else
+        puts "\t\trasters: #{rasters.count}"
+        gdal_merge(rasters, output_file, merge_strategy)
+        output_file
+      end
+    end
+
+    # Mosaic every UREF under an LOD into a single image
+    # (Does this work if both geotiffs and jp2s are present?)
+    dataset_group = [dataset.geocell, dataset.id].join("-")
+    dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
+    CDBTool.mkdirp(File.join(merged_dir, "datasets"))
+
+    if uref_rasters.compact.count == 0
+      puts "\tNo UREF rasters to merge."
+    else
+      gdal_merge(uref_rasters.compact, dataset_output, merge_strategy)
+    end
+  end
+
   final_output = File.join(final_dir, dataset_id + ".tif")
 
-  input_files = group.shift.collect do |dataset|
+  input_files = datasets.collect do |dataset|
     dataset_group = [dataset.geocell, dataset.id].join("-")
     File.join(merged_dir, "datasets", dataset_group + ".tif")
   end
 
-  # Use different compression for imagery (004)
-  if dataset_id.include?("004")
-    gdal_merge_imagery(input_files, final_output)
-  else
-    gdal_merge_raster(input_files, final_output)
+  if input_files.length > 0
+    gdal_merge(input_files, final_output, merge_strategy)
   end
 end
 

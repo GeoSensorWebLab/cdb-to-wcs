@@ -36,6 +36,12 @@ List geocells in a CDB, and the sub-collections for each geocell.
 
 Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using `gdal_merge.py`. First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. Different component selectors are merged separately. All output files are GeoTIFFs.
 
+### cdb-mosaic-vrt (Experimental)
+
+    $ ruby -Ilib bin/cdb-mosaic-vrt path/to/CDB
+
+Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using virtual datasets (VRTs). First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. Different component selectors are merged separately. All output files are VRTs. Very fast, but compatibility may be limited.
+
 ### cdb-verify
 
     $ ruby -Ilib bin/cdb-verify path/to/CDB

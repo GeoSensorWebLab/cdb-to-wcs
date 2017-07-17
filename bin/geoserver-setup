@@ -96,26 +96,10 @@ elsif auth_response_code >= 400
   exit 1
 end
 
-# Create/re-use a URI namespace
-NAMESPACE = {
-  prefix: "CDB",
-  uri: "http://localhost/CDB"
-}
-
-existing_ns_response = gs_get("/geoserver/rest/namespaces/CDB")
-
-if existing_ns_response.code != "404"
-  puts "CDB Namespace found, re-using."
-else
-  puts "CDB Namespace not found, creating it."
-  gs_post("/geoserver/rest/namespaces", JSON.generate({ "namespace" => NAMESPACE }))
-end
-
 # Create a new workspace
 # Based on current unix epoch
 WORKSPACE = {
-  name: "cdb-#{Time.new.to_i}",
-  namespace: NAMESPACE[:uri]
+  name: "cdb-#{Time.new.to_i}"
 }
 
 new_ws_response = gs_post("/geoserver/rest/workspaces", JSON.generate({ "workspace" => WORKSPACE }))

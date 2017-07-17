@@ -27,7 +27,7 @@ def gdal_merge(input_files, output_file, merge_strategy = :lossless)
 
   command = case merge_strategy
   when :lossless
-    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=LZW -co NUM_THREADS=ALL_CPUS -co TILED=YES -n 0 #{input_files.join(" ")}"
+    "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=LZW -co NUM_THREADS=ALL_CPUS -co TILED=YES -n 0 -a_nodata 0 #{input_files.join(" ")}"
   when :lossy
     "gdal_merge.py -o #{output_file} -co BIGTIFF=YES -co COMPRESS=JPEG -co TILED=YES #{input_files.join(" ")}"
   end

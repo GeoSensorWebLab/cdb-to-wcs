@@ -12,11 +12,11 @@ Uses GDAL to add overviews to GeoTIFFs in given directory. Run this after `cdb-m
 
 Overviews will make the GeoTIFFs load faster in GeoServer WCS.
 
-### cdb-list
+### cdb-list-datasets
 
-    $ ruby -Ilib bin/cdb-list path/to/CDB
+    $ ruby -Ilib bin/cdb-list-datasets path/to/CDB
 
-List coverages in a CDB, grouped by geocells. Counts the GeoTIFFs and JP2s found.
+List datasets in a CDB, grouped by geocells. Counts the GeoTIFFs and JP2s found.
 
 ### cdb-mosaic
 

@@ -19,7 +19,8 @@ cdb = CDB::CDB.new(listing.cdb_path)
 
 cdb.datasets.each do |dataset|
   puts "  #{dataset.id}"
-  puts "    LODs: #{dataset.lods.count}"
-  puts "    UREFs: #{dataset.urefs.count}"
-  puts "    Files: #{dataset.all_files.count}"
+  puts "    GeoCell: #{dataset.geocell}"
+  puts "    LODs:    #{dataset.lods.count}"
+  puts "    UREFs:   #{dataset.urefs.count}"
+  puts "    Files:   #{dataset.all_files.count}"
 end

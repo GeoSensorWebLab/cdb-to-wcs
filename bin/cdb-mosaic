@@ -47,12 +47,9 @@ CDBTool.mkdirp(merged_dir)
 final_dir = File.join(merged_dir, "final")
 CDBTool.mkdirp(final_dir)
 
-# Sort groups by string name, then chunk them based on the string id. This
-# groups datasets with the same name from different GeoCells.
-# Group - Array
-# 0 => dataset ID
-# 1 => Array of datasets
-cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do |group|
+# Group by datasets (collecting datasets from different geocells together),
+# then break down into sub-groups based on Component Selectors and UREFs
+cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
   dataset_id = group.at(0)
   datasets = group.at(1)
 
@@ -65,55 +62,67 @@ cdb.datasets.sort { |a,b| a.id <=> b.id }.chunk { |dataset| dataset.id }.each do
     merge_strategy = :lossless
   end
 
-  # Merge UREF data in each dataset, only selecting rasters from the highest
-  # LOD in each dataset.
-  datasets.each do |dataset|
-    puts dataset.geocell + "-" + dataset.id
+  # Collect all files under the highest LOD
+  all_files = datasets.collect { |dataset|
+    dataset.highest_lod.urefs.collect { |uref|
+      uref.entries.collect { |e| CDB::CDBFile.new(e) }.flatten
+    }.flatten
+  }.flatten
 
-    # pick highest LOD, or LC if only LOD
-    lod = dataset.highest_lod
+  # Group files by CS1, CS2, then UREF.
+  # Grouped by UREF to avoid merging too many files at once.
+  components = {}
+  all_files.each do |file|
+    cs1 = file.fields.at(2)
+    cs2 = file.fields.at(3)
+    uref = file.fields.at(5)
 
-    # mosaic files in each UREF
-    uref_rasters = lod.urefs.collect do |uref|
-      puts "\tUREF: #{uref.id}"
-      uref_group = [dataset.geocell, dataset.id, lod.id, uref.id].join("-")
-      output_file = File.join(merged_dir, "UREFs", uref_group + ".tif")
-      CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
+    components[cs1] ||= {}
+    components[cs1][cs2] ||= {}
+    components[cs1][cs2][uref] ||= []
+    components[cs1][cs2][uref].push(file)
+  end
 
-      rasters = uref.entries("/*.#{dataset_filetype}")
-      if rasters.count == 0
-        puts "\t\tNo rasters found."
-        nil
-      else
-        puts "\t\trasters: #{rasters.count}"
-        gdal_merge(rasters, output_file, merge_strategy)
-        output_file
+  # Merge at lowest group level, then move up the list
+  components.sort.each do |cs1, cs2s|
+    cs2s.sort.each do |cs2, urefs|
+
+      # Collect rasters from merging UREFs. Compact to remove null values.
+      uref_mosaics = urefs.collect { |uref, files|
+        puts "#{dataset_id}-#{cs1}-#{cs2}-#{uref}"
+        puts files.count
+
+        uref_group = [dataset_id, cs1, cs2, uref].join("-")
+        uref_output = File.join(merged_dir, "UREFs", uref_group + ".tif")
+        CDBTool.mkdirp(File.join(merged_dir, "UREFs"))
+
+        # Only collect rasters of types for this dataset
+        rasters = files.collect { |f|
+          if f.id.include?(dataset_filetype)
+            f.path
+          end
+        }.compact
+        if rasters.count == 0
+          puts "  No compatible rasters found."
+          nil
+        else
+          puts "  Rasters: #{rasters.count}"
+          gdal_merge(rasters, uref_output, merge_strategy)
+          uref_output
+        end
+      }.compact # urefs
+
+      # Merge rasters from different UREFs in the same CS2.
+      if uref_mosaics.count > 0
+        cs2_group = [dataset_id, cs1, cs2].join("-")
+        cs2_output = File.join(merged_dir, "final", cs2_group + ".tif")
+        puts "  Merging UREFs under same Component Selectors"
+        gdal_merge(uref_mosaics, cs2_output, merge_strategy)
       end
-    end
 
-    # Mosaic every UREF under an LOD into a single image
-    # (Does this work if both geotiffs and jp2s are present?)
-    dataset_group = [dataset.geocell, dataset.id].join("-")
-    dataset_output = File.join(merged_dir, "datasets", dataset_group + ".tif")
-    CDBTool.mkdirp(File.join(merged_dir, "datasets"))
-
-    if uref_rasters.compact.count == 0
-      puts "\tNo UREF rasters to merge."
-    else
-      gdal_merge(uref_rasters.compact, dataset_output, merge_strategy)
-    end
-  end
-
-  final_output = File.join(final_dir, dataset_id + ".tif")
-
-  input_files = datasets.collect do |dataset|
-    dataset_group = [dataset.geocell, dataset.id].join("-")
-    File.join(merged_dir, "datasets", dataset_group + ".tif")
-  end
-
-  if input_files.length > 0
-    gdal_merge(input_files, final_output, merge_strategy)
-  end
+    end # cs2
+  end # cs1
+  puts ""
 end
 
 puts "Output in #{final_dir}"

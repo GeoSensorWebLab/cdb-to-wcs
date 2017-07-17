@@ -7,19 +7,7 @@ module CDB
     end
 
     def components
-      components = {}
-      urefs.each do |uref|
-        uref.files_by_components.each do |cs1, cs2s|
-          components[cs1] ||= {}
-
-          cs2s.each do |cs2, files|
-            components[cs1][cs2] ||= []
-            components[cs1][cs2].concat(files)
-          end
-        end
-      end
-
-      components
+      @components ||= scan_components
     end
 
     def cs1_list
@@ -65,6 +53,23 @@ module CDB
     end
 
     private
+
+    # Collect all the files in the dataset under ALL UREFs and group by CS1
+    # then group by CS2.
+    def scan_components
+      components = {}
+      urefs.each do |uref|
+        uref.files_by_components.each do |cs1, cs2s|
+          components[cs1] ||= {}
+
+          cs2s.each do |cs2, files|
+            components[cs1][cs2] ||= []
+            components[cs1][cs2].concat(files)
+          end
+        end
+      end
+      components
+    end
 
     def scan_lods
       Dir.glob(@path + "/L*").collect do |entry|

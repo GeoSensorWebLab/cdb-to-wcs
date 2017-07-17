@@ -6,7 +6,7 @@ require "cdbtool"
 
 class CDBList < CDBTool::CLI
   def help_info
-    "List the contents of a CDB directory"
+    "List the datasets of a CDB directory"
   end
 end
 

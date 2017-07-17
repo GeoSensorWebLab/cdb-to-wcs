@@ -23,12 +23,16 @@ cdb.latcells.each do |latcell|
     datasets = loncell.entries.collect { |entry| CDB::Dataset.new(entry) }
     lods     = datasets.collect { |dataset| dataset.lods }.flatten
     urefs    = lods.collect { |lod| lod.urefs }.flatten
+    cs1      = urefs.collect { |uref| uref.files_by_cs1.keys }.flatten.uniq
+    cs2      = urefs.collect { |uref| uref.files_by_cs2.keys }.flatten.uniq
     files    = urefs.collect { |uref| uref.entries }.flatten
 
     puts "#{latcell.id}-#{loncell.id}"
     puts "    Datasets: #{datasets.count}"
     puts "    LODs:     #{lods.count}"
     puts "    UREFs:    #{urefs.count}"
+    puts "    CS1:      #{cs1.count}"
+    puts "    CS2:      #{cs2.count}"
     puts "    Files:    #{files.count}"
   end
 end

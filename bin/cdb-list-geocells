@@ -1,0 +1,34 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "cdb"
+require "cdbtool"
+
+class CDBList < CDBTool::CLI
+  def help_info
+    "List the GeoCells of a CDB directory"
+  end
+end
+
+listing = CDBList.new
+options = listing.parse(ARGV)
+
+# Print info
+cdb = CDB::CDB.new(listing.cdb_path)
+
+
+cdb.latcells.each do |latcell|
+  latcell.entries.each do |entry|
+    loncell  = CDB::CDBFile.new(entry)
+    datasets = loncell.entries.collect { |entry| CDB::Dataset.new(entry) }
+    lods     = datasets.collect { |dataset| dataset.lods }.flatten
+    urefs    = lods.collect { |lod| lod.urefs }.flatten
+    files    = urefs.collect { |uref| uref.entries }.flatten
+
+    puts "#{latcell.id}-#{loncell.id}"
+    puts "    Datasets: #{datasets.count}"
+    puts "    LODs:     #{lods.count}"
+    puts "    UREFs:    #{urefs.count}"
+    puts "    Files:    #{files.count}"
+  end
+end

@@ -18,6 +18,12 @@ Overviews will make the GeoTIFFs load faster in GeoServer WCS.
 
 List datasets in a CDB, grouped by geocells. Counts the GeoTIFFs and JP2s found.
 
+### cdb-list-geocells
+
+    $ ruby -Ilib bin/cdb-list-geocells path/to/CDB
+
+List geocells in a CDB, and the sub-collections for each geocell.
+
 ### cdb-mosaic
 
     $ ruby -Ilib bin/cdb-mosaic path/to/CDB

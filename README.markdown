@@ -56,6 +56,8 @@ Checks that the CDB has a Tiles directory.
 
 Logs into GeoServer, creates a new workspace, creates a coverage store for every raster in the final directory, then creates coverage layers for each raster. If there is an error, it quits and prints an error message. Will delete the workspace if import fails.
 
+Set the environment variable `HTTPS` to `false` to disable HTTPS connections to GeoServer during configuration.
+
 ## License
 
 Copyright GeoServerWeb Lab 2017, All Rights Reserved.

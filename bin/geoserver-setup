@@ -6,6 +6,8 @@ require "net/http"
 require "openssl"
 require "uri"
 
+USE_HTTPS = (ENV["HTTPS"].downcase == "true")
+
 if ARGV.count < 2
   puts "Usage: geoserver-setup <temp tiles path> <URL of GeoServer>"
   puts "Include HTTP Basic auth parameters in the URL."
@@ -14,6 +16,8 @@ end
 
 TILES_PATH = ARGV[0]
 GEOSERVER  = ARGV[1]
+
+puts "Using HTTPS: #{USE_HTTPS}"
 
 # Basic validation of input
 if !Dir.exists?(TILES_PATH)
@@ -39,7 +43,7 @@ else
 end
 
 def gs_get(path)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
     request = Net::HTTP::Get.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'
@@ -49,7 +53,7 @@ def gs_get(path)
 end
 
 def gs_post(path, body)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
     request = Net::HTTP::Post.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'
@@ -61,7 +65,7 @@ def gs_post(path, body)
 end
 
 def gs_delete(path)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
     request = Net::HTTP::Delete.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'

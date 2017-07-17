@@ -1,6 +1,6 @@
 module CDBTool
   class CLI
-    attr_accessor :cdb_path
+    attr_accessor :cdb_path, :logfile
     attr_reader :parser, :options
 
     # Class for command line options
@@ -46,9 +46,16 @@ module CDBTool
       end
 
       @cdb_path = args.shift
-      validate_debug!(@options.debug) if @options.debug
+      if @options.debug
+        validate_debug!(@options.debug)
+        self.logfile = @options.debug
+      end
 
       @options
+    end
+
+    def log(msg)
+      IO.write(self.logfile, "#{Time.now}, #{msg}\n", mode: 'a') if self.logfile
     end
 
     def validate_cdb!

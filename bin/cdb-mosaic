@@ -11,19 +11,13 @@ class CDBMosaic < CDBTool::CLI
   end
 end
 
-$LOGFILE = nil
-def log(msg)
-  IO.write($LOGFILE, "#{Time.now}, #{msg}\n", mode: 'a') if $LOGFILE
-end
+$mosaic = CDBMosaic.new
+options = $mosaic.parse(ARGV)
 
-mosaic = CDBMosaic.new
-options = mosaic.parse(ARGV)
-$LOGFILE = options.debug
-
-cdb = CDB::CDB.new(mosaic.cdb_path)
+cdb = CDB::CDB.new($mosaic.cdb_path)
 
 # Create temp dir for merged mosaics
-merged_dir = mosaic.cdb_path + "_temp"
+merged_dir = $mosaic.cdb_path + "_temp"
 
 # Merge input_files into output_file using GDAL
 # Don't do anything if output_file already exists
@@ -45,7 +39,7 @@ def gdal_merge(input_files, output_file, merge_strategy = :lossless)
   else
     puts command
     merge.run_command
-    log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
+    $mosaic.log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
   end
 end
 

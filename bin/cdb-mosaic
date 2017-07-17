@@ -43,6 +43,23 @@ def gdal_merge(input_files, output_file, merge_strategy = :lossless)
   end
 end
 
+# Add overviews to input_file, increasing rendering performance.
+# Lossless TIFFs will use LZW compression, lossy TIFFs will use JPEG compression.
+def gdal_addo(input_file, merge_strategy = :lossless)
+  command = case merge_strategy
+  when :lossless
+    "gdaladdo --config COMPRESS_OVERVIEW LZW #{input_file} 2 4 8 16"
+  when :lossy
+    "gdaladdo --config COMPRESS_OVERVIEW JPEG #{input_file} 2 4 8 16"
+  end
+
+  addo = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)
+
+  puts command
+  addo.run_command
+  $mosaic.log("#{input_file},#{File.size(input_file)},#{addo.execution_time}s")
+end
+
 CDBTool.mkdirp(merged_dir)
 final_dir = File.join(merged_dir, "final")
 CDBTool.mkdirp(final_dir)
@@ -112,12 +129,15 @@ cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
         end
       }.compact # urefs
 
-      # Merge rasters from different UREFs in the same CS2.
+      # Merge rasters from different UREFs in the same CS2, then add overviews.
       if uref_mosaics.count > 0
         cs2_group = [dataset_id, cs1, cs2].join("-")
         cs2_output = File.join(merged_dir, "final", cs2_group + ".tif")
         puts "  Merging UREFs under same Component Selectors"
         gdal_merge(uref_mosaics, cs2_output, merge_strategy)
+
+        # Add overviews
+        gdal_addo(cs2_output, merge_strategy)
       end
 
     end # cs2

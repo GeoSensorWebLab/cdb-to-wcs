@@ -36,6 +36,8 @@ List geocells in a CDB, and the sub-collections for each geocell.
 
 Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using `gdal_merge.py`. First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. Different component selectors are merged separately. All output files are GeoTIFFs.
 
+Output GeoTIFFs will have overviews added using GDAL. Lossy rasters will have JPEG overviews, lossless rasters will have LZW compressed overviews.
+
 ### cdb-mosaic-vrt (Experimental)
 
     $ ruby -Ilib bin/cdb-mosaic-vrt path/to/CDB

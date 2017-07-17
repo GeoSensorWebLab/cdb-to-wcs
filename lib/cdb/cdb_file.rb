@@ -11,5 +11,10 @@ module CDB
     def entries(filter = "/*")
       Dir.glob(@path + filter)
     end
+
+    def fields
+      basename = @id.split('.')[0]
+      basename.split('_')
+    end
   end
 end

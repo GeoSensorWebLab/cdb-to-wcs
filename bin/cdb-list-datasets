@@ -17,10 +17,15 @@ options = listing.parse(ARGV)
 cdb = CDB::CDB.new(listing.cdb_path)
 
 
-cdb.datasets.each do |dataset|
+cdb.datasets.sort_by { |x| x.id }.each do |dataset|
+  cs1 = dataset.urefs.collect { |uref| uref.files_by_cs1.keys }.flatten.uniq
+  cs2 = dataset.urefs.collect { |uref| uref.files_by_cs2.keys }.flatten.uniq
+
   puts "  #{dataset.id}"
   puts "    GeoCell: #{dataset.geocell}"
   puts "    LODs:    #{dataset.lods.count}"
   puts "    UREFs:   #{dataset.urefs.count}"
+  puts "    CS1:     #{cs1.count}"
+  puts "    CS2:     #{cs2.count}"
   puts "    Files:   #{dataset.all_files.count}"
 end

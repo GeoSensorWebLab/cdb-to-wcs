@@ -9,7 +9,7 @@ module CDB
 
     def scan_urefs
       Dir.glob(@path + "/U*").collect do |entry|
-        CDBFile.new(entry)
+        UREF.new(entry)
       end
     end
   end

@@ -11,13 +11,14 @@ class CDBMosaic < CDBTool::CLI
   end
 end
 
-$LOGFILE = "run.log"
+$LOGFILE = nil
 def log(msg)
-  IO.write($LOGFILE, "#{Time.now}, #{msg}\n", mode: 'a')
+  IO.write($LOGFILE, "#{Time.now}, #{msg}\n", mode: 'a') if $LOGFILE
 end
 
 mosaic = CDBMosaic.new
 options = mosaic.parse(ARGV)
+$LOGFILE = options.debug
 
 cdb = CDB::CDB.new(mosaic.cdb_path)
 

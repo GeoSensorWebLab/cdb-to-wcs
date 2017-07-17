@@ -5,13 +5,20 @@ module CDBTool
 
     # Class for command line options
     class CLIOptions
+      attr_accessor :debug
+
       def initialize
+        self.debug = nil
       end
 
       def define_options(parser, help_info)
         parser.banner = "Usage: $1 [options]"
         parser.separator help_info
         parser.separator "Common options:"
+
+        parser.on_tail("-d FILE", "--debug=FILE", "Log debug output to FILE") do |file|
+          self.debug = file
+        end
 
         parser.on_tail("-h", "--help", "Show this message") do
           puts parser
@@ -39,6 +46,7 @@ module CDBTool
       end
 
       @cdb_path = args.shift
+      validate_debug!(@options.debug) if @options.debug
 
       @options
     end
@@ -51,6 +59,13 @@ module CDBTool
 
       if !Dir.exists?(@cdb_path + "/Tiles")
         puts "CDB Tiles directory does not exist!"
+        exit 1
+      end
+    end
+
+    def validate_debug!(file)
+      if File.exist?(file) && !File.writable?(file)
+        puts "Debug file '#{file}' not writable"
         exit 1
       end
     end

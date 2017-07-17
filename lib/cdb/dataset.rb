@@ -6,6 +6,30 @@ module CDB
       @all_files ||= urefs.collect { |uref| uref.entries }.flatten
     end
 
+    def components
+      components = {}
+      urefs.each do |uref|
+        uref.files_by_components.each do |cs1, cs2s|
+          components[cs1] ||= {}
+
+          cs2s.each do |cs2, files|
+            components[cs1][cs2] ||= []
+            components[cs1][cs2].concat(files)
+          end
+        end
+      end
+
+      components
+    end
+
+    def cs1_list
+      @cs1 ||= urefs.collect { |uref| uref.cs1_list }.flatten.uniq
+    end
+
+    def cs2_list
+      @cs2 ||= urefs.collect { |uref| uref.cs2_list }.flatten.uniq
+    end
+
     def geocell
       lon = File.basename(File.dirname(@path))
       lat = File.basename(File.dirname(File.dirname(@path)))

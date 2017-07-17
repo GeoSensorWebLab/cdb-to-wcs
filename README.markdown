@@ -12,6 +12,12 @@ Uses GDAL to add overviews to GeoTIFFs in given directory. Run this after `cdb-m
 
 Overviews will make the GeoTIFFs load faster in GeoServer WCS.
 
+### cdb-list-components
+
+    $ ruby -Ilib bin/cdb-list-components path/to/CDB
+
+List datasets in a CDB, grouped by component selectors. Counts the files found for each component selector.
+
 ### cdb-list-datasets
 
     $ ruby -Ilib bin/cdb-list-datasets path/to/CDB
@@ -28,7 +34,7 @@ List geocells in a CDB, and the sub-collections for each geocell.
 
     $ ruby -Ilib bin/cdb-mosaic path/to/CDB
 
-Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using `gdal_merge.py`. First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. All output files are GeoTIFFs.
+Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using `gdal_merge.py`. First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. Different component selectors are merged separately. All output files are GeoTIFFs.
 
 ### cdb-verify
 

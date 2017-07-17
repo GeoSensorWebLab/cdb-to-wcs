@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "cdb"
+require "cdbtool"
+
+class CDBList < CDBTool::CLI
+  def help_info
+    "List the components of a CDB directory"
+  end
+end
+
+listing = CDBList.new
+options = listing.parse(ARGV)
+
+# Print info
+cdb = CDB::CDB.new(listing.cdb_path)
+
+cdb.datasets.sort_by { |x| x.id }.each do |dataset|
+  dataset.components.sort_by { |k,v| k }.each do |cs1, cs2s|
+    cs2s.sort.each do |cs2, files|
+      puts "#{dataset.id}-#{cs1}-#{cs2}"
+      puts "  Files: #{files.count}"
+    end
+  end
+  puts ""
+end

@@ -154,42 +154,52 @@ input_files.each do |file|
   new_coverage = gs_post("#{coveragestore_path}/coverages",
     JSON.generate({
       "coverage": {
-        abstract: "",
         defaultInterpolationMethod: "nearest neighbor",
-        dimensions: {
-          coverageDimension: [
-            {
-              description: "GridSampleDimension[-Infinity,Infinity]",
-              dimensionType: { name: "REAL_32BITS" },
-              name: "GRAY_INDEX",
-              range: {
-                max: "inf",
-                min: "-inf"
-              }
-            }
-          ]
-        },
+        description: "Generated from GeoTIFF",
         enabled: true,
         interpolationMethods: {
           string: ["nearest neighbor", "bilinear", "bicubic"]
         },
         keywords: { string: [basename, "WCS", "GeoTIFF"] },
+        metadata: {
+          entry: {
+            "@key": "dirName",
+            "$": "#{basename}_#{basename}"
+          }
+        },
         name: basename,
         namespace: {
-          href: "#{base_geoserver_url}/geoserver/rest/namespaces/CDB.json",
-          name: "CDB"
+          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}.json",
+          name: WORKSPACE[:name]
         },
+        nativeCoverageName: basename,
         nativeFormat: "GeoTIFF",
+        nativeName: basename,
         parameters: {
           entry: [
-            { null: "", string: "InputTransparentColor" },
+            { string: "InputTransparentColor", null: "" },
             { string: ["SUGGESTED_TILE_SIZE", "512,512"] }
           ]
         },
+        projectionPolicy: "REPROJECT_TO_DECLARED",
         requestSRS: { string: ["EPSG:4326"] },
         responseSRS: { string: ["EPSG:4326"] },
+        store: {
+          "@class": "coverageStore",
+          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}/coveragestores/#{basename}.json",
+          name: "#{WORKSPACE[:name]}:#{basename}"
+        },
         supportedFormats: {
-          string: ["GIF", "PNG", "JPEG", "GEOTIFF"]
+          string: [
+            "GIF",
+            "PNG",
+            "JPEG",
+            "TIFF",
+            "ArcGrid",
+            "ImageMosaic",
+            "GEOTIFF",
+            "Gtopo30"
+          ]
         },
         title: basename
       }

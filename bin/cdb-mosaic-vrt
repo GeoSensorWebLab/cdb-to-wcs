@@ -26,9 +26,9 @@ def gdal_buildvrt(input_files, output_file, merge_strategy = :lossless)
 
   command = case merge_strategy
   when :lossless
-    "gdalbuildvrt #{output_file} #{input_files.join(" ")}"
+    "gdalbuildvrt -srcnodata 0 -vrtnodata 0 #{output_file} #{input_files.join(" ")}"
   when :lossy
-    "gdalbuildvrt -srcnodata 0 #{output_file} #{input_files.join(" ")}"
+    "gdalbuildvrt #{output_file} #{input_files.join(" ")}"
   end
 
   merge = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)

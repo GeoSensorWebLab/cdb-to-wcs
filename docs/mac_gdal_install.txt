@@ -1,0 +1,208 @@
+Re: [Geoserver-devel] GDAL lib and imageio-ext 1.1.7 for macOS compiled succesfully - how to install ?
+From: Gilles Celli <gilles.celli@ec...> - 2017-03-24 14:52:03
+Hi all,
+
+Here's my quick guide on how to install and enable GDAL support for Geoserver on macOS / Mac OS X.
+
+Enabling gdal for Geoserver with imageio-ext on macOS 
+Tested on Mac OS X 10.11.6 with Tomcat 8.5.12 and Geoserver 2.10.2
+
+Pre-requirements:
+Xcode developer tools; install with command:
+#xcode-select --install
+
+You have several possibilities to enable GDAL support for Geoserver on macOS:
+Homebrew or Macports package manager
+Manually compiling gdal (but you need dependencies libraries) from source
+
+Latest "Java 8 SDK" from Oracle, download from:
+http://www.oracle.com/technetwork/java/javase/downloads/index.html <http://www.oracle.com/technetwork/java/javase/downloads/index.html>;
+
+Homebrew installation, see here:
+https://brew.sh <https://brew.sh/>;
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+1 -  The easy way: Installing gdal for Geoserver on macOS with Homebrew package manager
+--------------------------------------------------------------------------------------------------------------------------------------------------
+Inspired by:
+https://trac.osgeo.org/gdal/wiki/BuildingOnMac <https://trac.osgeo.org/gdal/wiki/BuildingOnMac>;
+
+Currently Homebrew installs gdal 1.1.5 (not the latest gdal 2.x version) 
+
+1a. Install Homebrew package manager, see here: https://brew.sh <https://brew.sh/>;
+
+Then do a:
+#brew update
+#brew install --with-swig-java gdal
+
+Homebrew will install the native gdal (dynamic) libraries in /usr/local/Cellar/gdal/1.11.5_1/lib/
+Homebrew will also create a symlink from /usr/local/Cellar/gdal/1.11.5_1/lib/ to /usr/local/lib/
+
+#cd /usr/local/Cellar/gdal/1.11.5_1/lib/
+#cd /usr/local/lib/
+
+You should see something like:
+
+#ls -logh /usr/local/Cellar/gdal/1.11.5_1/lib/
+total 51896
+-r--r--r--  1    101K Mar 22 11:30 gdal.jar
+-r--r--r--  1    8.7M Mar 22 11:30 libgdal.1.dylib
+-r--r--r--  1     16M Mar 22 11:28 libgdal.a
+lrwxr-xr-x  1     15B Mar 22 11:28 libgdal.dylib -> libgdal.1.dylib
+-r--r--r--  1     39K Mar 22 11:30 libgdalconstjni.1.dylib
+-r--r--r--  1     39K Mar 22 11:30 libgdalconstjni.dylib
+-r--r--r--  1    190K Mar 22 11:30 libgdaljni.1.dylib
+-r--r--r--  1    190K Mar 22 11:30 libgdaljni.dylib
+-r--r--r--  1    129K Mar 22 11:30 libogrjni.1.dylib
+-r--r--r--  1    129K Mar 22 11:30 libogrjni.dylib
+-r--r--r--  1     80K Mar 22 11:30 libosrjni.1.dylib
+-r--r--r--  1     80K Mar 22 11:30 libosrjni.dylib
+drwxr-xr-x  3    102B Mar 22 11:28 pkgconfig
+drwxr-xr-x  3    102B Mar 22 11:30 python2.7
+
+1b. Install the gdal java binding file for Geoserver
+
+The "gdal.jar" file is the Java-Binding file which is used to make the binding with Geoserver and gdal commands.
+
+You can copy "gdal.jar" to $CATALINA_HOME/webapps/geoserver/WEB_INF/lib/ with command:
+
+#cp /usr/local/Cellar/gdal/1.11.5_1/lib/gdal.jar $CATALINA_HOME/webapps/geoserver/WEB_INF/lib/
+
+But you can also extract "imageio-ext-gdal-bindings-1.9.2.jar" from one of the linux *tar.gz file here:
+http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/native/gdal/linux/ <http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/native/gdal/linux/>;
+
+and copy from the "javainfo" directory to $CATALINA_HOME/webapps/geoserver/WEB_INF/lib/ like this:
+
+#cp /Users/volkano/Downloads/gdal192-Ubuntu12-gcc4.6.3-x86_64/javainfo/imageio-ext-gdal-bindings-1.9.2.jar $CATALINA_HOME/webapps/geoserver/WEB_INF/lib/
+
+Both gdal  java bindings (gdal.jar or imageio-ext-gdal-bindings-1.9.2.jar) will fine. Be sure to have just one of these binding 
+
+1c. Now just follow the instructions from "Geoserver's GDAL extension" page, as described here:
+http://docs.geoserver.org/latest/en/user/data/raster/gdal.html
+
+Install GDAL Extension for the Geoserver.war version for Tomcat you have installed in $CATALINA_HOME/webapps/geoserver/WEB-INF/lib/
+Skip the part for "install the native libraries with Ubuntu 11 etc." since we just installed the native gdal libs on our Mac.
+Download "imageio-ext-1.1.17.jars.zip" from:
+http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/ <http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/>;
+Extract the *.jar files and copy them via macOS "Finder" to $CATALINA_HOME/webapps/geoserver/WEB-INF/lib/
+
+Download "gdal-data.zip" from here:
+http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/native/gdal/ <http://demo.geo-solutions.it/share/github/imageio-ext/releases/1.1.X/1.1.17/>;
+
+1d. Install the extracted "gdal-data.zip" to your $HOME dir:
+http://docs.geoserver.org/latest/en/user/data/raster/gdal.html <http://docs.geoserver.org/latest/en/user/data/raster/gdal.html>;
+
+1e. Edit Geoserver's startup script "setenv.sh"
+
+Before starting Geoserver we need to add the JAVA_OPTS of the gdal native libraries, or else Java will fail to   load the gdal binding. Homebrew automatically made various symlinks of the dynamic gdal libs from /usr/local/lib/ to /usr/local/Cellar/gdal/1.11.5_1/lib
+
+Edit $CATALINA_HOME/bin/setenv.sh and add the following line to it:
+
+# this is setenv.sh for Tomcat
+# Setting path for  gdal java binding - gdal installed with Homebrew
+# Command used: brew install --with-swig-java gdal
+export JAVA_OPTS="-Djava.library.path=/usr/local/lib/"
+
+1f. Start Tomcat 
+Start Geoserver by starting Tomcat
+To verify if you have the gdal extension properly installed:
+http://localhost:8080/geoserver/web/wicket/bookmarkable/org.geoserver.web.data.store.NewDataPage?6 <http://localhost:8080/geoserver/web/wicket/bookmarkable/org.geoserver.web.data.store.NewDataPage?6>;
+
+Browse to "Data" > "Stores" > "Add new Stores" Geoserver should display "ENVIHdr" and other raster format.
+
+Update your .bash_profile
+
+# For Tomcat Server, increase memory
+# Note: Set these variables in /Library/Tomcat/bin/setenv.sh
+export CATALINA_HOME=/Library/Tomcat/
+
+#export CATALINA_OPTS="$CATALINA_OPTS -Xms1024m"
+#export CATALINA_OPTS="$CATALINA_OPTS -Xmx16384m"
+#export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxPermSize=512m"
+
+export JAVA_HOME=$(/usr/libexec/java_home)
+#export JRE_HOME=/Library/Java/JavaVirtualMachines/jdk1.8.0_121.jdk/Contents/Home/
+
+# For geoserver gdal extension
+export GDAL_DATA="$HOME/gdal-data/"
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+2 - The hard way - Compile and install gdal 2.x manually
+--------------------------------------------------------------------------------------------------------------------------------------------------
+Pre-requirements:
+Xcode developer tools; install with command:
+#xcode-select --install
+#Homebrew for swig and packagemanager
+
+2a. First we need to install Kyng Chaos precompiled frameworks:
+UnixImageIO
+GEOS framework
+PROJ framework
+
+Download UnixImageIO, PROJ, and GEOS frameworks from Kyng Chaos website, here:
+http://www.kyngchaos.com/software:frameworks <http://www.kyngchaos.com/software:frameworks>;
+
+These frameworks will be installed /Library/Frameworks/
+
+Find out which version of java is installed with command, we will need the path for the configure script:
+# /usr/libexec/java_home 
+
+It should print something like:
+/Library/Java/JavaVirtualMachines/jdk1.8.0_121.jdk/Contents/Home
+
+Before compiling gdal from source, install "swig" and "packagemanager" with Homebrew
+#brew install swig
+#brew install packagemanager
+
+2b. Compile the native gdal2 libraries from source
+Download gdal 2.x from:
+http://www.gdal.org <http://www.gdal.org/>;
+
+Extract the gdal archive, and invoke the ./configure command
+Note:   we use the --prefix=/usr/local/gdal2 here to install everything in /usr/local/gdal2
+        Omitting --prefix will install everything in /iusr/local/gdal2
+
+
+#cd gdal-2.1.3
+#./configure --prefix=/usr/local/gdal2/ --with-threads --disable-static --without-grass --with-jasper=/Library/Frameworks/UnixImageIO.framework/unix --with-libtiff=/Library/Frameworks/UnixImageIO.framework/unix --with-jpeg=/Library/Frameworks/UnixImageIO.framework/unix --with-gif=/Library/Frameworks/UnixImageIO.framework/unix --with-png=/Library/Frameworks/UnixImageIO.framework/unix --with-geotiff=/Library/Frameworks/UnixImageIO.framework/unix --with-pcraster=internal --with-geos=/Library/Frameworks/GEOS.framework/unix/bin/geos-config --with-static-proj4=/Library/Frameworks/PROJ.framework/unix --with-expat --with-python -with-java -with-jvm-lib=/Library/Java/JavaVirtualMachines/jdk1.8.0_121.jdk/Contents/Home --with-libz=internal
+
+#make
+#sudo make install
+This will install everything in /usr/local/gdal2/
+
+2c. Build gdal java binding version
+
+#cd swig/java
+#make
+#sudo make install
+This will install these files in /usr/local/gdal2/lib/
+libgdalconstjni.20.dylib
+libgdalconstjni.dylib
+libgdaljni.20.dylib
+libgdaljni.dylib
+libogrjni.20.dylib
+libogrjni.dylib
+libosrjni.20.dylib
+libosrjni.dylib
+
+However the gdal java binding file "gdal.jar" will not be installed in /usr/local/gdal2/lib/
+So copy "gdal.jar" manually to 
+
+Note: the "gdal.jar" file is the Java-Binding file which can be used to make the binding with Geoserver and gdal.
+
+This can be used instead of 
+# Setting path for  gdal java binding - gdal installed with Homebrew
+export JAVA_OPTS="-Djava.library.path=/usr/local/gdal2/lib/"
+
+Start Geoserver via Tomcat, and you should see the ENVIHdr format in Geoserver > Data > "Stores" > "New Stores" 
+
+Note: If you get error "jni_md.h" missing then:
+copy /Library/Java/JavaVirtualMachines/jdk<version>.jdk/Contents/‌Home/include/darwin/‌jni_md.h
+to:
+/Library/Java/JavaVirtualMachines/jdk<version>.jdk/Contents/‌ Home/include/jni_md.h
+
+
+Hope this helps,
+
+Gilles

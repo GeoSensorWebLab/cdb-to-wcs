@@ -1,0 +1,267 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "json"
+require "net/http"
+require "openssl"
+require "uri"
+
+USE_HTTPS = (ENV["HTTPS"].downcase == "true")
+
+if ARGV.count < 2
+  puts "Usage: geoserver-setup <temp tiles path> <URL of GeoServer>"
+  puts "Include HTTP Basic auth parameters in the URL."
+  exit 1
+end
+
+TILES_PATH = ARGV[0]
+GEOSERVER  = ARGV[1]
+
+puts "Using HTTPS: #{USE_HTTPS}"
+
+# Basic validation of input
+if !Dir.exists?(TILES_PATH)
+  puts "path to final tiles directory does not exist"
+  exit 1
+end
+
+begin
+  GEOSERVER_URI = URI.parse(GEOSERVER)
+rescue URI::InvalidURIError => e
+  puts "Invalid GeoServer URL: #{e}"
+  exit 1
+end
+
+# Count number of input files
+input_files = Dir.glob(TILES_PATH + "/*")
+
+if input_files.length == 0
+  puts "No input files in #{TILES_PATH}, exiting now."
+  exit 1
+else
+  puts "Found #{input_files.count} input files."
+end
+
+def gs_get(path)
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+    request = Net::HTTP::Get.new(path)
+    request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
+    request['Accept'] = 'application/json'
+
+    http.request(request)
+  end
+end
+
+def gs_post(path, body)
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+    request = Net::HTTP::Post.new(path)
+    request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
+    request['Accept'] = 'application/json'
+    request.content_type = 'application/json'
+    request.body = body
+
+    http.request(request)
+  end
+end
+
+def gs_delete(path)
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+    request = Net::HTTP::Delete.new(path)
+    request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
+    request['Accept'] = 'application/json'
+
+    http.request(request)
+  end
+end
+
+# Test connection to GeoServer
+test_response = gs_get(GEOSERVER_URI).code.to_i
+
+if test_response < 400
+  puts "HTTP Check OK"
+else
+    puts "HTTP Client Error"
+    exit 1
+end
+
+# Check login to GeoServer
+login_response = gs_get("/geoserver/rest/settings")
+auth_response_code = login_response.code.to_i
+
+if auth_response_code == 401
+  puts "Cannot authenticate to GeoServer, check the Basic Authentication."
+  exit 1
+elsif auth_response_code >= 400
+  puts "HTTP Error authenticating to GeoServer: #{auth_response_code}"
+  exit 1
+end
+
+# Create a new workspace
+# Based on current unix epoch
+WORKSPACE = {
+  name: "cdb-#{Time.new.to_i}"
+}
+
+new_ws_response = gs_post("/geoserver/rest/workspaces", JSON.generate({ "workspace" => WORKSPACE }))
+
+if new_ws_response.code != "201"
+  puts "Error creating workspace."
+  puts new_ws_response.code
+  puts new_ws_response.body
+  exit 1
+end
+
+# Function to clean up the workspace we just created in case something in the script fails later.
+def delete_workspace
+  delete_response = gs_delete("/geoserver/rest/workspaces/#{WORKSPACE[:name]}?recurse=true")
+  if delete_response.code == "200"
+    puts "Delete workspace successful."
+  else
+    puts "Delete workspace failed."
+  end
+end
+
+# For each input file, create a new raster coverage store
+base_geoserver_url = "#{GEOSERVER_URI.scheme}://#{GEOSERVER_URI.host}:#{GEOSERVER_URI.port}"
+workspace_path = "/geoserver/rest/workspaces/#{WORKSPACE[:name]}"
+input_files.each do |file|
+  puts "Readying import for #{file}"
+  basename = File.basename(file, ".vrt")
+
+  new_coveragestore = gs_post("#{workspace_path}/coveragestores",
+    JSON.generate({
+      "coverageStore": {
+        name: basename,
+        description: basename,
+        type: "VRT",
+        enabled: true,
+        url: "file:#{file}",
+        workspace: {
+          name: WORKSPACE[:name],
+          href: "#{base_geoserver_url}/#{workspace_path}.json"
+        }
+      }
+  }))
+  coveragestore_path = "#{workspace_path}/coveragestores/#{basename}"
+
+  if new_coveragestore.code != "201"
+    puts "Failed to create coverage store."
+    puts new_coveragestore.body
+    delete_workspace
+    exit 1
+  end
+  puts "Created coverage store."
+
+  new_coverage = gs_post("#{coveragestore_path}/coverages",
+    JSON.generate({
+      "coverage": {
+        defaultInterpolationMethod: "nearest neighbor",
+        description: "Generated from VRT",
+        enabled: true,
+        interpolationMethods: {
+          string: ["nearest neighbor", "bilinear", "bicubic"]
+        },
+        keywords: { string: [basename, "WCS", "VRT"] },
+        metadata: {
+          entry: {
+            "@key": "dirName",
+            "$": "#{basename}_#{basename}"
+          }
+        },
+        name: basename,
+        namespace: {
+          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}.json",
+          name: WORKSPACE[:name]
+        },
+        nativeCoverageName: basename,
+        nativeFormat: "VRT",
+        nativeName: basename,
+        parameters: {
+          entry: [
+            {
+              string: [
+                "BackgroundValues",
+                "0"
+              ]
+            },
+            {
+              string: [
+                "InputTransparentColor",
+                "nodata"
+              ]
+            },
+            {
+              string: [
+                "OutputTransparentColor",
+                "nodata"
+              ]
+            },
+            {
+              string: [
+                "SUGGESTED_TILE_SIZE",
+                "512,512"
+              ]
+            },
+            {
+              string: [
+                "FootprintBehavior",
+                "Cut"
+              ]
+            },
+            {
+              string: [
+                "USE_MULTITHREADING",
+                true
+              ]
+            },
+            {
+              string: [
+                "USE_JAI_IMAGEREAD",
+                false
+              ]
+            }
+          ]
+        },
+        projectionPolicy: "REPROJECT_TO_DECLARED",
+        requestSRS: { string: ["EPSG:4326"] },
+        responseSRS: { string: ["EPSG:4326"] },
+        store: {
+          "@class": "coverageStore",
+          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}/coveragestores/#{basename}.json",
+          name: "#{WORKSPACE[:name]}:#{basename}"
+        },
+        supportedFormats: {
+          string: [
+            "ArcGrid",
+            "ERDASImg",
+            "DTED",
+            "RST",
+            "AIG",
+            "GEOTIFF",
+            "ENVIHdr",
+            "VRT",
+            "Gtopo30",
+            "EHdr",
+            "RPFTOC",
+            "ImageMosaic",
+            "NITF",
+            "GIF",
+            "PNG",
+            "JPEG",
+            "TIFF"
+          ]
+        },
+        title: basename
+      }
+    })
+  )
+
+  if new_coverage.code != "201"
+    puts "Failed to create coverage."
+    puts new_coverage.body
+    delete_workspace
+    exit 1
+  end
+  puts "Created coverage."
+end
+

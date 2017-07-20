@@ -12,6 +12,11 @@ class CDBMosaic < CDBTool::CLI
   end
 end
 
+# Only create VRTs for these datasets
+ALLOWED_DATASETS = [
+  "001_Elevation",
+  "004_Imagery"
+]
 VRT_FINAL_DIR = "vrt-final"
 VRT_UREF_DIR  = "vrt-uref"
 
@@ -94,7 +99,6 @@ def group_by_cs1_cs2_uref(files)
 end
 
 def merge_uref(uref, files, dataset_group, output_dir)
-  dataset_filetype = CDB::filetype_for_dataset_id(dataset_group)
   uref_group = [dataset_group, uref].join("-")
   puts uref_group
   puts files.count
@@ -103,11 +107,7 @@ def merge_uref(uref, files, dataset_group, output_dir)
   CDBTool.mkdirp(output_dir)
 
   # Only collect rasters of types for this dataset
-  rasters = files.collect { |f|
-    if f.id.include?(dataset_filetype)
-      f.path
-    end
-  }.compact
+  rasters = files.collect { |f| f.path }.compact
   if rasters.count == 0
     puts "  No compatible rasters found."
     nil
@@ -134,7 +134,10 @@ end
 
 # Group by datasets (collecting datasets from different geocells together),
 # then break down into sub-groups based on Component Selectors and UREFs
-cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
+cdb.datasets.select { |x| ALLOWED_DATASETS.include?(x.id) }
+  .sort_by { |x| x.id }
+  .chunk { |x| x.id }
+  .each { |group|
   dataset_id = group.at(0)
   datasets   = group.at(1)
 
@@ -156,6 +159,6 @@ cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
     end # cs2
   end # cs1
   puts ""
-end
+}
 
 puts "Output in #{final_dir}"

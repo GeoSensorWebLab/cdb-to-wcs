@@ -43,7 +43,7 @@ else
 end
 
 def gs_get(path)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE, read_timeout: 600) do |http|
     request = Net::HTTP::Get.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'
@@ -53,7 +53,7 @@ def gs_get(path)
 end
 
 def gs_post(path, body)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE, read_timeout: 600) do |http|
     request = Net::HTTP::Post.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'
@@ -65,7 +65,7 @@ def gs_post(path, body)
 end
 
 def gs_delete(path)
-  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |http|
+  Net::HTTP.start(GEOSERVER_URI.host, GEOSERVER_URI.port, use_ssl: USE_HTTPS, verify_mode: OpenSSL::SSL::VERIFY_NONE, read_timeout: 600) do |http|
     request = Net::HTTP::Delete.new(path)
     request.basic_auth GEOSERVER_URI.user, GEOSERVER_URI.password
     request['Accept'] = 'application/json'

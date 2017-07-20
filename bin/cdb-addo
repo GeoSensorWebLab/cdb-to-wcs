@@ -38,7 +38,7 @@ def human_size(bytes)
   end
 end
 
-Dir.glob(path + "/*.vrt").each do |raster|
+def add_overview(raster)
   puts "Adding overviews to #{raster}"
   start_size = human_size(File.size(raster))
 
@@ -54,3 +54,6 @@ Dir.glob(path + "/*.vrt").each do |raster|
   end_size = human_size(File.size(raster))
   puts "Done (#{start_size} => #{end_size})"
 end
+
+Dir.glob(path + "/*.vrt").each { |raster| add_overview(raster) }
+Dir.glob(path + "/*.tif").each { |raster| add_overview(raster) }

@@ -3,6 +3,7 @@
 require "bundler/setup"
 require "cdb"
 require "cdbtool"
+require "json"
 require "mixlib/shellout"
 
 class CDBMosaic < CDBTool::CLI
@@ -26,22 +27,37 @@ CDBTool.mkdirp(merged_dir)
 final_dir = File.join(merged_dir, VRT_FINAL_DIR)
 CDBTool.mkdirp(final_dir)
 
-# Returns the filetype expected for a dataset ID.
-# Basically Imagery is JPEG2000 and everything else is GeoTIFF.
-def filetype_for_dataset_id(dataset_id)
-  dataset_id.include?("004_Imagery") ? "jp2" : "tif"
+# Return true if `files` are of a lossy type (JPG, JP2, VRT of JP2s, etc)
+# or false if lossless type (TIF, VRT of TIFs, etc)
+# If input files are of different types then weird things might happen.
+def gdal_lossy_files?(files)
+  extension = File.extname(files.at(0))
+
+  case extension
+  when ".vrt"
+    # 3 bands in output will be interpreted as imagery.
+    c = Mixlib::ShellOut.new("gdalinfo -json #{files.at(0)}")
+    c.run_command
+    output = JSON.parse(c.stdout)
+    output["bands"].count == 3 ? true : false
+  when ".tif"
+    false
+  when ".jp2"
+    true
+  else
+    false
+  end
 end
 
 # Merge input_files into output_file using GDAL
 # Don't do anything if output_file already exists
-def gdal_buildvrt(input_files, output_file, filetype = "tif")
+def gdal_buildvrt(input_files, output_file)
   return nil if input_files.length == 0
 
-  command = case filetype
-  when "tif"
-    "gdalbuildvrt -srcnodata 0 -vrtnodata 0 #{output_file} #{input_files.join(" ")}"
-  when "jp2"
+  command = if gdal_lossy_files?(input_files)
     "gdalbuildvrt #{output_file} #{input_files.join(" ")}"
+  else
+    "gdalbuildvrt -srcnodata 0 -vrtnodata 0 #{output_file} #{input_files.join(" ")}"
   end
 
   merge = Mixlib::ShellOut.new(command, live_stdout: $stdout, live_stderr: $stderr)
@@ -78,7 +94,7 @@ def group_by_cs1_cs2_uref(files)
 end
 
 def merge_uref(uref, files, dataset_group, output_dir)
-  dataset_filetype = filetype_for_dataset_id(dataset_group)
+  dataset_filetype = CDB::filetype_for_dataset_id(dataset_group)
   uref_group = [dataset_group, uref].join("-")
   puts uref_group
   puts files.count
@@ -97,14 +113,12 @@ def merge_uref(uref, files, dataset_group, output_dir)
     nil
   else
     puts "  Rasters: #{rasters.count}"
-    gdal_buildvrt(rasters, uref_output, dataset_filetype)
+    gdal_buildvrt(rasters, uref_output)
     uref_output
   end
 end
 
 def merge_urefs(urefs, dataset_group, merged_dir)
-  dataset_filetype = filetype_for_dataset_id(dataset_group)
-
   # Collect rasters from merging UREFs. Compact to remove null values.
   uref_mosaics = urefs.collect { |uref, files|
     merge_uref(uref, files, dataset_group, File.join(merged_dir, VRT_UREF_DIR))
@@ -114,7 +128,7 @@ def merge_urefs(urefs, dataset_group, merged_dir)
   if uref_mosaics.count > 0
     cs2_output = File.join(merged_dir, VRT_FINAL_DIR, dataset_group + ".vrt")
     puts "  Merging UREFs under same Component Selectors"
-    gdal_buildvrt(uref_mosaics, cs2_output, dataset_filetype)
+    gdal_buildvrt(uref_mosaics, cs2_output)
   end
 end
 

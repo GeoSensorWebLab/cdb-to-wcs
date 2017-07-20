@@ -141,23 +141,25 @@ cdb.datasets.select { |x| ALLOWED_DATASETS.include?(x.id) }
   dataset_id = group.at(0)
   datasets   = group.at(1)
 
-  # Collect all files under the highest LOD
-  all_files = datasets.collect { |dataset|
-    dataset.highest_lod.urefs.collect { |uref|
+  # Work on each geocell individually.
+  # Different GeoCells will be merged using GeoServer layer groups later.
+  datasets.each do |dataset|
+    geocell_files = dataset.highest_lod.urefs.collect { |uref|
       uref.entries.collect { |e| CDB::CDBFile.new(e) }.flatten
     }.flatten
-  }.flatten
 
-  # Group files by CS1, CS2, then UREF.
-  # Grouped by UREF to avoid merging too many files at once.
-  components = group_by_cs1_cs2_uref(all_files)
+    # Group files by CS1, CS2, then UREF.
+    # Grouped by UREF to avoid merging too many files at once.
+    components = group_by_cs1_cs2_uref(geocell_files)
 
-  # Merge at lowest group level, then move up the list
-  components.sort.each do |cs1, cs2s|
-    cs2s.sort.each do |cs2, urefs|
-      merge_urefs(urefs, "#{dataset_id}-#{cs1}-#{cs2}", merged_dir)
-    end # cs2
-  end # cs1
+    # Merge at lowest group level, then move up the list
+    components.sort.each do |cs1, cs2s|
+      cs2s.sort.each do |cs2, urefs|
+        merge_urefs(urefs, "#{dataset_id}-#{cs1}-#{cs2}-#{dataset.geocell}", merged_dir)
+      end # cs2
+    end # cs1
+  end
+
   puts ""
 }
 

@@ -21,16 +21,26 @@ cdb = CDB::CDB.new($mosaic.cdb_path)
 
 # Create temp dir for merged mosaics
 merged_dir = $mosaic.cdb_path + "_temp"
+CDBTool.mkdirp(merged_dir)
+
+final_dir = File.join(merged_dir, VRT_FINAL_DIR)
+CDBTool.mkdirp(final_dir)
+
+# Returns the filetype expected for a dataset ID.
+# Basically Imagery is JPEG2000 and everything else is GeoTIFF.
+def filetype_for_dataset_id(dataset_id)
+  dataset_id.include?("004_Imagery") ? "jp2" : "tif"
+end
 
 # Merge input_files into output_file using GDAL
 # Don't do anything if output_file already exists
-def gdal_buildvrt(input_files, output_file, merge_strategy = :lossless)
+def gdal_buildvrt(input_files, output_file, filetype = "tif")
   return nil if input_files.length == 0
 
-  command = case merge_strategy
-  when :lossless
+  command = case filetype
+  when "tif"
     "gdalbuildvrt -srcnodata 0 -vrtnodata 0 #{output_file} #{input_files.join(" ")}"
-  when :lossy
+  when "jp2"
     "gdalbuildvrt #{output_file} #{input_files.join(" ")}"
   end
 
@@ -47,24 +57,72 @@ def gdal_buildvrt(input_files, output_file, merge_strategy = :lossless)
   end
 end
 
-CDBTool.mkdirp(merged_dir)
-final_dir = File.join(merged_dir, VRT_FINAL_DIR)
-CDBTool.mkdirp(final_dir)
+# Take a list of files, then output a hash with:
+# => first set of keys of Component Selector 1
+# => values are hashes with keys of Component Selector 2
+# => values are hashes with keys of UREFs
+# => values are arrays of files in the above hierarchy
+def group_by_cs1_cs2_uref(files)
+  components = {}
+  files.each do |file|
+    cs1 = file.fields.at(2)
+    cs2 = file.fields.at(3)
+    uref = file.fields.at(5)
+
+    components[cs1] ||= {}
+    components[cs1][cs2] ||= {}
+    components[cs1][cs2][uref] ||= []
+    components[cs1][cs2][uref].push(file)
+  end
+  components
+end
+
+def merge_uref(uref, files, dataset_group, output_dir)
+  dataset_filetype = filetype_for_dataset_id(dataset_group)
+  uref_group = [dataset_group, uref].join("-")
+  puts uref_group
+  puts files.count
+
+  uref_output = File.join(output_dir, uref_group + ".vrt")
+  CDBTool.mkdirp(output_dir)
+
+  # Only collect rasters of types for this dataset
+  rasters = files.collect { |f|
+    if f.id.include?(dataset_filetype)
+      f.path
+    end
+  }.compact
+  if rasters.count == 0
+    puts "  No compatible rasters found."
+    nil
+  else
+    puts "  Rasters: #{rasters.count}"
+    gdal_buildvrt(rasters, uref_output, dataset_filetype)
+    uref_output
+  end
+end
+
+def merge_urefs(urefs, dataset_group, merged_dir)
+  dataset_filetype = filetype_for_dataset_id(dataset_group)
+
+  # Collect rasters from merging UREFs. Compact to remove null values.
+  uref_mosaics = urefs.collect { |uref, files|
+    merge_uref(uref, files, dataset_group, File.join(merged_dir, VRT_UREF_DIR))
+  }.compact
+
+  # Merge rasters from different UREFs in the same CS2.
+  if uref_mosaics.count > 0
+    cs2_output = File.join(merged_dir, VRT_FINAL_DIR, dataset_group + ".vrt")
+    puts "  Merging UREFs under same Component Selectors"
+    gdal_buildvrt(uref_mosaics, cs2_output, dataset_filetype)
+  end
+end
 
 # Group by datasets (collecting datasets from different geocells together),
 # then break down into sub-groups based on Component Selectors and UREFs
 cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
   dataset_id = group.at(0)
-  datasets = group.at(1)
-
-  case dataset_id
-  when "004_Imagery"
-    dataset_filetype = "jp2"
-    merge_strategy = :lossy
-  else
-    dataset_filetype = "tif"
-    merge_strategy = :lossless
-  end
+  datasets   = group.at(1)
 
   # Collect all files under the highest LOD
   all_files = datasets.collect { |dataset|
@@ -75,55 +133,12 @@ cdb.datasets.sort_by { |x| x.id }.chunk { |x| x.id }.each do |group|
 
   # Group files by CS1, CS2, then UREF.
   # Grouped by UREF to avoid merging too many files at once.
-  components = {}
-  all_files.each do |file|
-    cs1 = file.fields.at(2)
-    cs2 = file.fields.at(3)
-    uref = file.fields.at(5)
-
-    components[cs1] ||= {}
-    components[cs1][cs2] ||= {}
-    components[cs1][cs2][uref] ||= []
-    components[cs1][cs2][uref].push(file)
-  end
+  components = group_by_cs1_cs2_uref(all_files)
 
   # Merge at lowest group level, then move up the list
   components.sort.each do |cs1, cs2s|
     cs2s.sort.each do |cs2, urefs|
-
-      # Collect rasters from merging UREFs. Compact to remove null values.
-      uref_mosaics = urefs.collect { |uref, files|
-        puts "#{dataset_id}-#{cs1}-#{cs2}-#{uref}"
-        puts files.count
-
-        uref_group = [dataset_id, cs1, cs2, uref].join("-")
-        uref_output = File.join(merged_dir, VRT_UREF_DIR, uref_group + ".vrt")
-        CDBTool.mkdirp(File.join(merged_dir, VRT_UREF_DIR))
-
-        # Only collect rasters of types for this dataset
-        rasters = files.collect { |f|
-          if f.id.include?(dataset_filetype)
-            f.path
-          end
-        }.compact
-        if rasters.count == 0
-          puts "  No compatible rasters found."
-          nil
-        else
-          puts "  Rasters: #{rasters.count}"
-          gdal_buildvrt(rasters, uref_output, merge_strategy)
-          uref_output
-        end
-      }.compact # urefs
-
-      # Merge rasters from different UREFs in the same CS2.
-      if uref_mosaics.count > 0
-        cs2_group = [dataset_id, cs1, cs2].join("-")
-        cs2_output = File.join(merged_dir, VRT_FINAL_DIR, cs2_group + ".vrt")
-        puts "  Merging UREFs under same Component Selectors"
-        gdal_buildvrt(uref_mosaics, cs2_output, merge_strategy)
-      end
-
+      merge_urefs(urefs, "#{dataset_id}-#{cs1}-#{cs2}", merged_dir)
     end # cs2
   end # cs1
   puts ""

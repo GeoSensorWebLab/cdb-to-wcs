@@ -15,33 +15,35 @@ module GeoServer
     end
 
     def get(path)
-      Net::HTTP.start(@uri.host, @uri.port, @http_options) do |http|
-        request = Net::HTTP::Get.new(path)
-        request.basic_auth @uri.user, @uri.password
-        request['Accept'] = 'application/json'
-
-        http.request(request)
+      http_request do
+        Net::HTTP::Get.new(path)
       end
     end
 
     def post(path, data)
-      Net::HTTP.start(@uri.host, @uri.port, @http_options) do |http|
+      http_request do
         request = Net::HTTP::Post.new(path)
-        request.basic_auth @uri.user, @uri.password
-        request['Accept'] = 'application/json'
         request.content_type = 'application/json'
         request.body = data
 
-        http.request(request)
+        request
       end
     end
 
     def delete(path)
+      http_request do
+        Net::HTTP::Delete.new(path)
+      end
+    end
+
+    private
+
+    # Wrap out common URI/http settings
+    def http_request(&block)
       Net::HTTP.start(@uri.host, @uri.port, @http_options) do |http|
-        request = Net::HTTP::Delete.new(path)
+        request = block.call
         request.basic_auth @uri.user, @uri.password
         request['Accept'] = 'application/json'
-
         http.request(request)
       end
     end

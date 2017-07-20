@@ -38,15 +38,18 @@ def human_size(bytes)
   end
 end
 
-Dir.glob(path + "/*.tif").each do |raster|
+Dir.glob(path + "/*.vrt").each do |raster|
   puts "Adding overviews to #{raster}"
   start_size = human_size(File.size(raster))
 
-  addo = Mixlib::ShellOut.new("gdaladdo \"#{raster}\" 2 4 8 16")
+  if raster.include?("004")
+    compress = "JPEG"
+  else
+    compress = "LZW"
+  end
 
+  addo = Mixlib::ShellOut.new("gdaladdo --config COMPRESS_OVERVIEW #{compress} \"#{raster}\" 2 4 8 16 32", live_stdout: $stdout, live_stderr: $stderr, timeout: 7200)
   addo.run_command
-  puts addo.stdout
-  puts addo.stderr
 
   end_size = human_size(File.size(raster))
   puts "Done (#{start_size} => #{end_size})"

@@ -88,144 +88,147 @@ end
 # For each input file, create a new raster coverage store
 base_geoserver_url = GEOSERVER.base_url
 workspace_path = "/geoserver/rest/workspaces/#{WORKSPACE[:name]}"
-input_files.each do |file|
-  puts "Readying import for #{file}"
-  basename = File.basename(file, ".vrt")
+input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |group, files|
+  puts "GROUP: #{group}"
+  puts "FILES: #{files}"
+  files.each do |file|
+    puts "Readying import for #{file}"
+    basename = File.basename(file, ".vrt")
 
-  new_coveragestore = GEOSERVER.post("#{workspace_path}/coveragestores",
-    JSON.generate({
-      "coverageStore": {
-        name: basename,
-        description: basename,
-        type: "VRT",
-        enabled: true,
-        url: "file:#{file}",
-        workspace: {
-          name: WORKSPACE[:name],
-          href: "#{base_geoserver_url}/#{workspace_path}.json"
-        }
-      }
-  }))
-  coveragestore_path = "#{workspace_path}/coveragestores/#{basename}"
-
-  if new_coveragestore.code != "201"
-    puts "Failed to create coverage store."
-    puts new_coveragestore.body
-    delete_workspace
-    exit 1
-  end
-  puts "Created coverage store."
-
-  new_coverage = GEOSERVER.post("#{coveragestore_path}/coverages",
-    JSON.generate({
-      "coverage": {
-        defaultInterpolationMethod: "nearest neighbor",
-        description: "Generated from VRT",
-        enabled: true,
-        interpolationMethods: {
-          string: ["nearest neighbor", "bilinear", "bicubic"]
-        },
-        keywords: { string: [basename, "WCS", "VRT"] },
-        metadata: {
-          entry: {
-            "@key": "dirName",
-            "$": "#{basename}_#{basename}"
+    new_coveragestore = GEOSERVER.post("#{workspace_path}/coveragestores",
+      JSON.generate({
+        "coverageStore": {
+          name: basename,
+          description: basename,
+          type: "VRT",
+          enabled: true,
+          url: "file:#{file}",
+          workspace: {
+            name: WORKSPACE[:name],
+            href: "#{base_geoserver_url}/#{workspace_path}.json"
           }
-        },
-        name: basename,
-        namespace: {
-          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}.json",
-          name: WORKSPACE[:name]
-        },
-        nativeCoverageName: basename,
-        nativeFormat: "VRT",
-        nativeName: basename,
-        parameters: {
-          entry: [
-            {
-              string: [
-                "BackgroundValues",
-                "0"
-              ]
-            },
-            {
-              string: [
-                "InputTransparentColor",
-                "nodata"
-              ]
-            },
-            {
-              string: [
-                "OutputTransparentColor",
-                "nodata"
-              ]
-            },
-            {
-              string: [
-                "SUGGESTED_TILE_SIZE",
-                "512,512"
-              ]
-            },
-            {
-              string: [
-                "FootprintBehavior",
-                "Cut"
-              ]
-            },
-            {
-              string: [
-                "USE_MULTITHREADING",
-                true
-              ]
-            },
-            {
-              string: [
-                "USE_JAI_IMAGEREAD",
-                false
-              ]
+        }
+    }))
+    coveragestore_path = "#{workspace_path}/coveragestores/#{basename}"
+
+    if new_coveragestore.code != "201"
+      puts "Failed to create coverage store."
+      puts new_coveragestore.body
+      delete_workspace
+      exit 1
+    end
+    puts "Created coverage store."
+
+    new_coverage = GEOSERVER.post("#{coveragestore_path}/coverages",
+      JSON.generate({
+        "coverage": {
+          defaultInterpolationMethod: "nearest neighbor",
+          description: "Generated from VRT",
+          enabled: true,
+          interpolationMethods: {
+            string: ["nearest neighbor", "bilinear", "bicubic"]
+          },
+          keywords: { string: [basename, "WCS", "VRT"] },
+          metadata: {
+            entry: {
+              "@key": "dirName",
+              "$": "#{basename}_#{basename}"
             }
-          ]
-        },
-        projectionPolicy: "REPROJECT_TO_DECLARED",
-        requestSRS: { string: ["EPSG:4326"] },
-        responseSRS: { string: ["EPSG:4326"] },
-        store: {
-          "@class": "coverageStore",
-          href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}/coveragestores/#{basename}.json",
-          name: "#{WORKSPACE[:name]}:#{basename}"
-        },
-        supportedFormats: {
-          string: [
-            "ArcGrid",
-            "ERDASImg",
-            "DTED",
-            "RST",
-            "AIG",
-            "GEOTIFF",
-            "ENVIHdr",
-            "VRT",
-            "Gtopo30",
-            "EHdr",
-            "RPFTOC",
-            "ImageMosaic",
-            "NITF",
-            "GIF",
-            "PNG",
-            "JPEG",
-            "TIFF"
-          ]
-        },
-        title: basename
-      }
-    })
-  )
+          },
+          name: basename,
+          namespace: {
+            href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}.json",
+            name: WORKSPACE[:name]
+          },
+          nativeCoverageName: basename,
+          nativeFormat: "VRT",
+          nativeName: basename,
+          parameters: {
+            entry: [
+              {
+                string: [
+                  "BackgroundValues",
+                  "0"
+                ]
+              },
+              {
+                string: [
+                  "InputTransparentColor",
+                  "nodata"
+                ]
+              },
+              {
+                string: [
+                  "OutputTransparentColor",
+                  "nodata"
+                ]
+              },
+              {
+                string: [
+                  "SUGGESTED_TILE_SIZE",
+                  "512,512"
+                ]
+              },
+              {
+                string: [
+                  "FootprintBehavior",
+                  "Cut"
+                ]
+              },
+              {
+                string: [
+                  "USE_MULTITHREADING",
+                  true
+                ]
+              },
+              {
+                string: [
+                  "USE_JAI_IMAGEREAD",
+                  false
+                ]
+              }
+            ]
+          },
+          projectionPolicy: "REPROJECT_TO_DECLARED",
+          requestSRS: { string: ["EPSG:4326"] },
+          responseSRS: { string: ["EPSG:4326"] },
+          store: {
+            "@class": "coverageStore",
+            href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}/coveragestores/#{basename}.json",
+            name: "#{WORKSPACE[:name]}:#{basename}"
+          },
+          supportedFormats: {
+            string: [
+              "ArcGrid",
+              "ERDASImg",
+              "DTED",
+              "RST",
+              "AIG",
+              "GEOTIFF",
+              "ENVIHdr",
+              "VRT",
+              "Gtopo30",
+              "EHdr",
+              "RPFTOC",
+              "ImageMosaic",
+              "NITF",
+              "GIF",
+              "PNG",
+              "JPEG",
+              "TIFF"
+            ]
+          },
+          title: basename
+        }
+      })
+    )
 
-  if new_coverage.code != "201"
-    puts "Failed to create coverage."
-    puts new_coverage.body
-    delete_workspace
-    exit 1
+    if new_coverage.code != "201"
+      puts "Failed to create coverage."
+      puts new_coverage.body
+      delete_workspace
+      exit 1
+    end
+    puts "Created coverage."
   end
-  puts "Created coverage."
 end
-

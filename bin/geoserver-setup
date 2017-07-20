@@ -3,8 +3,6 @@
 require "bundler/setup"
 require "geoserver"
 require "json"
-require "net/http"
-require "openssl"
 require "uri"
 
 if ARGV.count < 2

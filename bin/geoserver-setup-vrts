@@ -62,16 +62,14 @@ end
 
 # Create a new workspace
 # Based on current unix epoch
-WORKSPACE = {
+WORKSPACE = GEOSERVER.create_workspace({
   name: "cdb-#{Time.new.to_i}"
-}
-
-GEOSERVER.create_workspace(WORKSPACE)
+})
 
 # Function to clean up the workspace we just created in case something in the script fails later.
 def delete_workspace
   begin
-    GEOSERVER.delete_workspace(WORKSPACE)
+    WORKSPACE.delete
   rescue e
     puts "Delete workspace failed!"
   end

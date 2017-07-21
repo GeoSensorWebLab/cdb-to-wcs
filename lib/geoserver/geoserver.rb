@@ -54,14 +54,8 @@ module GeoServer
 
     # workspace – Hash
     def create_workspace(workspace)
-      response = post("/geoserver/rest/workspaces", JSON.generate({ "workspace" => workspace }))
-      raise ArgumentError, "Error creating workspace.\n #{response}" if response.code != "201"
-    end
-
-    # workspace – Hash
-    def delete_workspace(workspace)
-      response = delete("/geoserver/rest/workspaces/#{WORKSPACE[:name]}?recurse=true")
-      raise ArgumentError, "Delete workspace failed.\n #{response}" if response.code != "200"
+      new_ws = Workspace.new(self, workspace)
+      new_ws.save
     end
 
     private

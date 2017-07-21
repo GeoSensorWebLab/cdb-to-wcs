@@ -1,4 +1,5 @@
 require "geoserver/geoserver"
+require "geoserver/workspace"
 
 require "json"
 require "net/http"

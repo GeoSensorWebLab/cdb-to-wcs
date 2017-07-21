@@ -36,16 +36,19 @@ module GeoServer
       end
     end
 
-    def create_coverage(path, coverage)
-      new_coverage = Coverage.new(self, path, coverage)
+    def create_coverage(parent_path, coverage)
+      new_coverage = Coverage.new(self, parent_path, coverage)
       new_coverage.save
     end
 
-    # path - String
-    # coveragestore - Hash
-    def create_coveragestore(path, coveragestore)
-      new_cs = CoverageStore.new(self, path, coveragestore)
+    def create_coveragestore(parent_path, coveragestore)
+      new_cs = CoverageStore.new(self, parent_path, coveragestore)
       new_cs.save
+    end
+
+    def create_layer_group(parent_path, layer_group)
+      new_layer_group = LayerGroup.new(self, parent_path, layer_group)
+      new_layer_group.save
     end
 
     # workspace – Hash

@@ -1,6 +1,7 @@
 require "geoserver/coverage"
 require "geoserver/coverage_store"
 require "geoserver/geoserver"
+require "geoserver/layer_group"
 require "geoserver/workspace"
 
 require "json"

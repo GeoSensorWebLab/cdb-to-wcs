@@ -62,14 +62,14 @@ end
 
 # Create a new workspace
 # Based on current unix epoch
-WORKSPACE = GEOSERVER.create_workspace({
+workspace = GEOSERVER.create_workspace({
   name: "cdb-#{Time.new.to_i}"
 })
 
 # Function to clean up the workspace we just created in case something in the script fails later.
 def delete_workspace
   begin
-    WORKSPACE.delete
+    workspace.delete
   rescue e
     puts "Delete workspace failed!"
   end
@@ -78,21 +78,22 @@ end
 # For each input file, create a new raster coverage store
 base_geoserver_url = GEOSERVER.base_url
 
-input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |group, files|
+input_files.sort.chunk { |file| File.basename(file).split('-')[0..-3].join('-') }.each do |group, files|
   puts "GROUP: #{group}"
   puts "FILES: #{files}"
-  files.each do |file|
+
+  coverages = files.collect do |file|
     puts "Readying import for #{file}"
     basename = File.basename(file, ".vrt")
 
-    coverage_store = GEOSERVER.create_coveragestore(WORKSPACE.path, {
+    coverage_store = GEOSERVER.create_coveragestore(workspace.path, {
       name: basename,
       description: basename,
       type: "VRT",
       url: "file:#{file}",
       workspace: {
-        name: WORKSPACE[:name],
-        href: "#{WORKSPACE.path}.json"
+        name: workspace[:name],
+        href: "#{workspace.path}.json"
       }
     })
     puts "Created coverage store."
@@ -108,8 +109,8 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       },
       name: basename,
       namespace: {
-        href: "#{WORKSPACE.path}.json",
-        name: WORKSPACE[:name]
+        href: "#{workspace.path}.json",
+        name: workspace[:name]
       },
       nativeCoverageName: basename,
       nativeFormat: "VRT",
@@ -117,11 +118,36 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       store: {
         "@class": "coverageStore",
         href: "#{coverage_store.path}.json",
-        name: "#{WORKSPACE[:name]}:#{basename}"
+        name: "#{workspace[:name]}:#{basename}"
       },
       title: basename
     })
 
-    puts "Created coverage."
+    puts "Created coverage. #{coverage.path} #{coverage[:name]}"
+    coverage
   end
+
+  # Create layer group for coverages, use group name for layer group
+  group_name = group.split('/').last
+  layer_group = GEOSERVER.create_layer_group(workspace.path, {
+    name: group_name,
+    mode: "NAMED",
+    title: group_name,
+    abstractTxt: "Merged GeoCells of same Dataset/Component Selectors",
+    workspace: {
+      href: "#{workspace.path}.json",
+      name: workspace[:name]
+    },
+    publishables: {
+      published: coverages.collect { |coverage|
+        {
+          "@type": "layer",
+          href: "#{coverage.path}.json",
+          name: "#{workspace[:name]}:#{coverage[:name]}"
+        }
+      }
+    }
+  })
+  puts "Layer group created."
+  puts ""
 end

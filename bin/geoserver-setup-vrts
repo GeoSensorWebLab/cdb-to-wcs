@@ -97,13 +97,8 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
     })
     puts "Created coverage store."
 
-    GEOSERVER.create_coverage({
-      defaultInterpolationMethod: "nearest neighbor",
+    coverage = GEOSERVER.create_coverage(coverage_store.path, {
       description: "Generated from VRT",
-      enabled: true,
-      interpolationMethods: {
-        string: ["nearest neighbor", "bilinear", "bicubic"]
-      },
       keywords: { string: [basename, "WCS", "VRT"] },
       metadata: {
         entry: {
@@ -119,83 +114,13 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       nativeCoverageName: basename,
       nativeFormat: "VRT",
       nativeName: basename,
-      parameters: {
-        entry: [
-          {
-            string: [
-              "BackgroundValues",
-              "0"
-            ]
-          },
-          {
-            string: [
-              "InputTransparentColor",
-              "nodata"
-            ]
-          },
-          {
-            string: [
-              "OutputTransparentColor",
-              "nodata"
-            ]
-          },
-          {
-            string: [
-              "SUGGESTED_TILE_SIZE",
-              "512,512"
-            ]
-          },
-          {
-            string: [
-              "FootprintBehavior",
-              "Cut"
-            ]
-          },
-          {
-            string: [
-              "USE_MULTITHREADING",
-              true
-            ]
-          },
-          {
-            string: [
-              "USE_JAI_IMAGEREAD",
-              false
-            ]
-          }
-        ]
-      },
-      projectionPolicy: "REPROJECT_TO_DECLARED",
-      requestSRS: { string: ["EPSG:4326"] },
-      responseSRS: { string: ["EPSG:4326"] },
       store: {
         "@class": "coverageStore",
         href: "#{coverage_store.path}.json",
         name: "#{WORKSPACE[:name]}:#{basename}"
       },
-      supportedFormats: {
-        string: [
-          "ArcGrid",
-          "ERDASImg",
-          "DTED",
-          "RST",
-          "AIG",
-          "GEOTIFF",
-          "ENVIHdr",
-          "VRT",
-          "Gtopo30",
-          "EHdr",
-          "RPFTOC",
-          "ImageMosaic",
-          "NITF",
-          "GIF",
-          "PNG",
-          "JPEG",
-          "TIFF"
-        ]
-      },
       title: basename
-    }, coverage_store.path)
+    })
 
     puts "Created coverage."
   end

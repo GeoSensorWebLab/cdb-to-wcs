@@ -1,3 +1,4 @@
+require "geoserver/coverage"
 require "geoserver/coverage_store"
 require "geoserver/geoserver"
 require "geoserver/workspace"

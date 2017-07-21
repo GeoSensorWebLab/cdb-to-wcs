@@ -36,11 +36,9 @@ module GeoServer
       end
     end
 
-    def create_coverage(coverage, path)
-      response = post("#{path}/coverages", JSON.generate({
-        "coverage": coverage
-      }))
-      raise ArgumentError, "Error creating coverage.\n #{response}" if response.code != "201"
+    def create_coverage(path, coverage)
+      new_coverage = Coverage.new(self, path, coverage)
+      new_coverage.save
     end
 
     # path - String

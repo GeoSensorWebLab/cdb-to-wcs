@@ -2,11 +2,15 @@ module GeoServer
   class CoverageStore
     attr_reader :path
 
+    DEFAULT_PARAMETERS = {
+      enabled: true
+    }
+
     def initialize(server, parent_path, parameters = {})
       @server = server
       @parent_path = parent_path
       @path = nil
-      @parameters = parameters
+      @parameters = DEFAULT_PARAMETERS.merge(parameters)
     end
 
     def parse(json)

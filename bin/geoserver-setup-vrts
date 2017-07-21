@@ -89,7 +89,6 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       name: basename,
       description: basename,
       type: "VRT",
-      enabled: true,
       url: "file:#{file}",
       workspace: {
         name: WORKSPACE[:name],

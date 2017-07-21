@@ -43,13 +43,11 @@ module GeoServer
       raise ArgumentError, "Error creating coverage.\n #{response}" if response.code != "201"
     end
 
-    # coveragestore - Hash
     # path - String
-    def create_coveragestore(coveragestore, path)
-      response = post("#{path}/coveragestores", JSON.generate({
-        "coverageStore": coveragestore
-      }))
-      raise ArgumentError, "Error creating coverage store.]n #{response}" if response.code != "201"
+    # coveragestore - Hash
+    def create_coveragestore(path, coveragestore)
+      new_cs = CoverageStore.new(self, path, coveragestore)
+      new_cs.save
     end
 
     # workspace – Hash

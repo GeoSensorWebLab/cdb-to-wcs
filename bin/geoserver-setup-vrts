@@ -78,6 +78,7 @@ end
 # For each input file, create a new raster coverage store
 base_geoserver_url = GEOSERVER.base_url
 workspace_path = "/geoserver/rest/workspaces/#{WORKSPACE[:name]}"
+
 input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |group, files|
   puts "GROUP: #{group}"
   puts "FILES: #{files}"
@@ -85,7 +86,7 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
     puts "Readying import for #{file}"
     basename = File.basename(file, ".vrt")
 
-    GEOSERVER.create_coveragestore({
+    coverage_store = GEOSERVER.create_coveragestore(workspace_path, {
       name: basename,
       description: basename,
       type: "VRT",
@@ -95,9 +96,9 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
         name: WORKSPACE[:name],
         href: "#{base_geoserver_url}/#{workspace_path}.json"
       }
-    }, workspace_path)
+    })
     puts "Created coverage store."
-    coveragestore_path = "#{workspace_path}/coveragestores/#{basename}"
+    coveragestore_path = coverage_store.path
 
     GEOSERVER.create_coverage({
       defaultInterpolationMethod: "nearest neighbor",

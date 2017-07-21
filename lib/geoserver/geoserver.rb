@@ -36,6 +36,34 @@ module GeoServer
       end
     end
 
+    def create_coverage(coverage, path)
+      response = post("#{path}/coverages", JSON.generate({
+        "coverage": coverage
+      }))
+      raise ArgumentError, "Error creating coverage.\n #{response}" if response.code != "201"
+    end
+
+    # coveragestore - Hash
+    # path - String
+    def create_coveragestore(coveragestore, path)
+      response = post("#{path}/coveragestores", JSON.generate({
+        "coverageStore": coveragestore
+      }))
+      raise ArgumentError, "Error creating coverage store.]n #{response}" if response.code != "201"
+    end
+
+    # workspace – Hash
+    def create_workspace(workspace)
+      response = post("/geoserver/rest/workspaces", JSON.generate({ "workspace" => workspace }))
+      raise ArgumentError, "Error creating workspace.\n #{response}" if response.code != "201"
+    end
+
+    # workspace – Hash
+    def delete_workspace(workspace)
+      response = delete("/geoserver/rest/workspaces/#{WORKSPACE[:name]}?recurse=true")
+      raise ArgumentError, "Delete workspace failed.\n #{response}" if response.code != "200"
+    end
+
     private
 
     # Wrap out common URI/http settings

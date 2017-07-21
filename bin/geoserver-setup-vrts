@@ -77,7 +77,6 @@ end
 
 # For each input file, create a new raster coverage store
 base_geoserver_url = GEOSERVER.base_url
-workspace_path = "/geoserver/rest/workspaces/#{WORKSPACE[:name]}"
 
 input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |group, files|
   puts "GROUP: #{group}"
@@ -86,7 +85,7 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
     puts "Readying import for #{file}"
     basename = File.basename(file, ".vrt")
 
-    coverage_store = GEOSERVER.create_coveragestore(workspace_path, {
+    coverage_store = GEOSERVER.create_coveragestore(WORKSPACE.path, {
       name: basename,
       description: basename,
       type: "VRT",
@@ -94,11 +93,10 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       url: "file:#{file}",
       workspace: {
         name: WORKSPACE[:name],
-        href: "#{base_geoserver_url}/#{workspace_path}.json"
+        href: "#{WORKSPACE.path}.json"
       }
     })
     puts "Created coverage store."
-    coveragestore_path = coverage_store.path
 
     GEOSERVER.create_coverage({
       defaultInterpolationMethod: "nearest neighbor",
@@ -116,7 +114,7 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       },
       name: basename,
       namespace: {
-        href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}.json",
+        href: "#{WORKSPACE.path}.json",
         name: WORKSPACE[:name]
       },
       nativeCoverageName: basename,
@@ -173,7 +171,7 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
       responseSRS: { string: ["EPSG:4326"] },
       store: {
         "@class": "coverageStore",
-        href: "#{base_geoserver_url}/geoserver/rest/namespaces/#{WORKSPACE[:name]}/coveragestores/#{basename}.json",
+        href: "#{coverage_store.path}.json",
         name: "#{WORKSPACE[:name]}:#{basename}"
       },
       supportedFormats: {
@@ -198,7 +196,7 @@ input_files.sort.chunk { |file| file.split('-')[0..-1].join('-') }.each do |grou
         ]
       },
       title: basename
-    }, coveragestore_path)
+    }, coverage_store.path)
 
     puts "Created coverage."
   end

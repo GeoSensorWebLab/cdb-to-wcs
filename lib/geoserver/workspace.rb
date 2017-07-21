@@ -2,8 +2,11 @@ module GeoServer
   class Workspace
     WORKSPACES_PATH = "/geoserver/rest/workspaces"
 
+    attr_reader :path
+
     def initialize(server, parameters = {})
       @server = server
+      @path = nil
       @parameters = parameters
     end
 
@@ -22,7 +25,8 @@ module GeoServer
     def save
       response = @server.post(WORKSPACES_PATH, JSON.generate({ "workspace" => @parameters }))
       raise ArgumentError, "Error creating workspace.\n #{response}" if response.code != "201"
-      parse(@server.get(response.header["Location"]).body)
+      @path = response.header["Location"]
+      parse(@server.get(@path).body)
       self
     end
 

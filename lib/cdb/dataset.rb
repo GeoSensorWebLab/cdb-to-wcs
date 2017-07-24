@@ -21,7 +21,7 @@ module CDB
     def geocell
       lon = File.basename(File.dirname(@path))
       lat = File.basename(File.dirname(File.dirname(@path)))
-      "#{lat}-#{lon}"
+      "#{lat}#{lon}"
     end
 
     def lods

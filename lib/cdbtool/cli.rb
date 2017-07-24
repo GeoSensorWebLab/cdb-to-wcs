@@ -1,14 +1,15 @@
 module CDBTool
   class CLI
-    attr_accessor :cdb_path, :logfile
+    attr_accessor :cdb_path, :logfile, :verbose
     attr_reader :parser, :options
 
     # Class for command line options
     class CLIOptions
-      attr_accessor :debug
+      attr_accessor :debug, :verbose
 
       def initialize
         self.debug = nil
+        self.verbose = 0
       end
 
       def define_options(parser, help_info)
@@ -18,6 +19,10 @@ module CDBTool
 
         parser.on_tail("-d FILE", "--debug=FILE", "Log debug output to FILE") do |file|
           self.debug = file
+        end
+
+        parser.on_tail("-v", "--verbose", "Increase stdout verbosity") do |file|
+          self.verbose += 1
         end
 
         parser.on_tail("-h", "--help", "Show this message") do
@@ -50,6 +55,8 @@ module CDBTool
         validate_debug!(@options.debug)
         self.logfile = @options.debug
       end
+
+      self.verbose = @options.verbose
 
       @options
     end

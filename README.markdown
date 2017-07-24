@@ -44,7 +44,9 @@ Output GeoTIFFs will have overviews added using GDAL. Lossy rasters will have JP
 
     $ ruby -Ilib bin/cdb-mosaic-vrt path/to/CDB
 
-Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using virtual datasets (VRTs). First merges in UREFs under the highest LODs, then merges UREFs, then merges GeoCells to leave datasets. Different component selectors are merged separately. All output files are VRTs. Very fast, but compatibility may be limited.
+Creates a new directory at `path/to/CDB_temp` and scans the coverages in the CDB and merges them using virtual datasets (VRTs). Files are selected from `001_Elevation` and `004_Imagery` under the highest LODs, then grouped by Component Selectors, GeoCells, and then UREFs. They are then combined into VRTs in the reverse order.
+
+All output files are VRTs. Very fast, but compatibility may be limited.
 
 ### cdb-verify
 

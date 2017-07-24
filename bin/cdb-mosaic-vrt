@@ -17,19 +17,24 @@ ALLOWED_DATASETS = [
   "001_Elevation",
   "004_Imagery"
 ]
-VRT_FINAL_DIR = "vrt-final"
-VRT_UREF_DIR  = "vrt-uref"
 
-$mosaic = CDBMosaic.new
-options = $mosaic.parse(ARGV)
+VRT_UREF_DIR    = "vrt-uref"
+VRT_GEOCELL_DIR = "vrt-geocell"
+VRT_FINAL_DIR   = "vrt-final"
 
-cdb = CDB::CDB.new($mosaic.cdb_path)
+$tool = CDBMosaic.new
+$tool.parse(ARGV)
 
-# Create temp dir for merged mosaics
-merged_dir = $mosaic.cdb_path + "_temp"
+cdb = CDB::CDB.new($tool.cdb_path)
+
+# Create temp dirs for virtual files
+merged_dir  = $tool.cdb_path + "_temp"
+uref_dir    = File.join(merged_dir, VRT_UREF_DIR)
+geocell_dir = File.join(merged_dir, VRT_GEOCELL_DIR)
+final_dir   = File.join(merged_dir, VRT_FINAL_DIR)
 CDBTool.mkdirp(merged_dir)
-
-final_dir = File.join(merged_dir, VRT_FINAL_DIR)
+CDBTool.mkdirp(uref_dir)
+CDBTool.mkdirp(geocell_dir)
 CDBTool.mkdirp(final_dir)
 
 # Return true if `files` are of a lossy type (JPG, JP2, VRT of JP2s, etc)
@@ -69,66 +74,16 @@ def gdal_buildvrt(input_files, output_file)
 
   if File.exists?(output_file)
     puts "Output exists, skipping buildvrt command."
+    output_file
   else
-    puts command
+    puts command if $tool.verbose > 0
     merge.run_command
     if File.exist?(output_file)
-      $mosaic.log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
+      $tool.log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
+      output_file
+    else
+      nil
     end
-  end
-end
-
-# Take a list of files, then output a hash with:
-# => first set of keys of Component Selector 1
-# => values are hashes with keys of Component Selector 2
-# => values are hashes with keys of UREFs
-# => values are arrays of files in the above hierarchy
-def group_by_cs1_cs2_uref(files)
-  components = {}
-  files.each do |file|
-    cs1 = file.fields.at(2)
-    cs2 = file.fields.at(3)
-    uref = file.fields.at(5)
-
-    components[cs1] ||= {}
-    components[cs1][cs2] ||= {}
-    components[cs1][cs2][uref] ||= []
-    components[cs1][cs2][uref].push(file)
-  end
-  components
-end
-
-def merge_uref(uref, files, dataset_group, output_dir)
-  uref_group = [dataset_group, uref].join("-")
-  puts uref_group
-  puts files.count
-
-  uref_output = File.join(output_dir, uref_group + ".vrt")
-  CDBTool.mkdirp(output_dir)
-
-  # Only collect rasters of types for this dataset
-  rasters = files.collect { |f| f.path }.compact
-  if rasters.count == 0
-    puts "  No compatible rasters found."
-    nil
-  else
-    puts "  Rasters: #{rasters.count}"
-    gdal_buildvrt(rasters, uref_output)
-    uref_output
-  end
-end
-
-def merge_urefs(urefs, dataset_group, merged_dir)
-  # Collect rasters from merging UREFs. Compact to remove null values.
-  uref_mosaics = urefs.collect { |uref, files|
-    merge_uref(uref, files, dataset_group, File.join(merged_dir, VRT_UREF_DIR))
-  }.compact
-
-  # Merge rasters from different UREFs in the same CS2.
-  if uref_mosaics.count > 0
-    cs2_output = File.join(merged_dir, VRT_FINAL_DIR, dataset_group + ".vrt")
-    puts "  Merging UREFs under same Component Selectors"
-    gdal_buildvrt(uref_mosaics, cs2_output)
   end
 end
 
@@ -141,25 +96,54 @@ cdb.datasets.select { |x| ALLOWED_DATASETS.include?(x.id) }
   dataset_id = group.at(0)
   datasets   = group.at(1)
 
-  # Work on each geocell individually.
-  # Different GeoCells will be merged using GeoServer layer groups later.
-  datasets.each do |dataset|
-    geocell_files = dataset.highest_lod.urefs.collect { |uref|
+  puts dataset_id
+
+  # invert the tree and work up from the files. This allows easier selection by
+  # CS.
+
+  dataset_files = datasets.collect { |dataset|
+    dataset.highest_lod.urefs.collect { |uref|
       uref.entries.collect { |e| CDB::CDBFile.new(e) }.flatten
     }.flatten
+  }.flatten
 
-    # Group files by CS1, CS2, then UREF.
-    # Grouped by UREF to avoid merging too many files at once.
-    components = group_by_cs1_cs2_uref(geocell_files)
+  # Group by component selector, geocell, uref (in reverse merge order)
+  grouped_files = dataset_files.reduce({}) do |memo, file|
+    geocell = file.fields.at(0)
+    cs1     = file.fields.at(2)
+    cs2     = file.fields.at(3)
+    uref    = file.fields.at(5)
 
-    # Merge at lowest group level, then move up the list
-    components.sort.each do |cs1, cs2s|
-      cs2s.sort.each do |cs2, urefs|
-        merge_urefs(urefs, "#{dataset_id}-#{cs1}-#{cs2}-#{dataset.geocell}", merged_dir)
-      end # cs2
-    end # cs1
+    memo["#{cs1}-#{cs2}"] ||= {}
+    memo["#{cs1}-#{cs2}"][geocell] ||= {}
+    memo["#{cs1}-#{cs2}"][geocell][uref] ||= []
+    memo["#{cs1}-#{cs2}"][geocell][uref].push(file)
+    memo
   end
 
+  grouped_files.each do |cs_group, geocells|
+
+    geocell_rasters = geocells.collect { |geocell, urefs|
+
+      uref_rasters = urefs.collect { |uref, files|
+        rasters = files.map(&:path)
+        # Merge files with same component selector, same geocell, same uref
+        puts "Merging RREFs"
+        outfile_name = [dataset_id, cs_group, geocell, uref].join("-")
+        gdal_buildvrt(rasters, File.join(uref_dir, outfile_name + ".vrt"))
+      }.compact
+
+      # Merge files with same component selector, same geocell
+      puts "Merging UREFs"
+      outfile_name = [dataset_id, cs_group, geocell].join("-")
+      gdal_buildvrt(uref_rasters, File.join(geocell_dir, outfile_name + ".vrt"))
+    }.compact
+
+    # Merge files with same component selector
+    puts "Merging GeoCells"
+    outfile_name = [dataset_id, cs_group].join("-")
+    gdal_buildvrt(geocell_rasters, File.join(final_dir, outfile_name + ".vrt"))
+  end
   puts ""
 }
 

@@ -24,6 +24,8 @@ VRT_FINAL_DIR   = "vrt-final"
 
 $tool = CDBMosaic.new
 $tool.parse(ARGV)
+$logger    = $tool.logger
+$benchmark = $tool.file_logger
 
 cdb = CDB::CDB.new($tool.cdb_path)
 
@@ -47,6 +49,7 @@ def gdal_lossy_files?(files)
   when ".vrt"
     # 3 bands in output will be interpreted as imagery.
     c = Mixlib::ShellOut.new("gdalinfo -json #{files.at(0)}")
+    $logger.debug(c.command)
     c.run_command
     output = JSON.parse(c.stdout)
     output["bands"].count == 3 ? true : false
@@ -76,10 +79,10 @@ def gdal_buildvrt(input_files, output_file)
     puts "Output exists, skipping buildvrt command."
     output_file
   else
-    puts command if $tool.verbose > 0
+    $logger.debug(command)
     merge.run_command
     if File.exist?(output_file)
-      $tool.log("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
+      $benchmark.info("#{output_file},#{File.size(output_file)},#{merge.execution_time}s")
       output_file
     else
       nil

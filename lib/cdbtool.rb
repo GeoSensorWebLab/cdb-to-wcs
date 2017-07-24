@@ -1,6 +1,7 @@
 require "cdbtool/cli"
 
 require "fileutils"
+require "logging"
 require "optparse"
 
 module CDBTool

@@ -1,6 +1,6 @@
 module CDBTool
   class CLI
-    attr_accessor :cdb_path, :logfile, :verbose
+    attr_accessor :cdb_path, :file_logger, :logger
     attr_reader :parser, :options
 
     # Class for command line options
@@ -32,6 +32,15 @@ module CDBTool
       end
     end
 
+    def initialize
+      self.file_logger = Logging.logger['file_logger']
+      self.file_logger.level = :info
+
+      self.logger = Logging.logger['stdout']
+      self.logger.add_appenders(Logging.appenders.stdout)
+      self.logger.level = :warn
+    end
+
     # Subclasses should override this
     def help_info
       ""
@@ -53,16 +62,12 @@ module CDBTool
       @cdb_path = args.shift
       if @options.debug
         validate_debug!(@options.debug)
-        self.logfile = @options.debug
+        self.file_logger.add_appenders(Logging.appenders.file(@options.debug))
       end
 
-      self.verbose = @options.verbose
+      self.logger.level = 4 - @options.verbose
 
       @options
-    end
-
-    def log(msg)
-      IO.write(self.logfile, "#{Time.now}, #{msg}\n", mode: 'a') if self.logfile
     end
 
     def validate_cdb!

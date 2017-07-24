@@ -8,11 +8,11 @@ I recommend using [QGIS](http://qgis.org/en/site/) as a testing client to previe
 
 ### cdb-addo
 
-Uses GDAL to add overviews to GeoTIFFs in given directory. Run this after `cdb-mosaic`.
+Uses GDAL to add overviews to GeoTIFFs or VRTs in given directory. Run this after `cdb-mosaic`.
 
     $ ruby -Ilib bin/cdb-addo path/to/CDB_temp/final
 
-Overviews will make the GeoTIFFs load faster in GeoServer WCS.
+Overviews will make the GeoTIFFs/VRTs load faster in GeoServer WCS. VRTs will have external `.ovr` files created, TIFFs will have their overviews embedded.
 
 ### cdb-list-components
 

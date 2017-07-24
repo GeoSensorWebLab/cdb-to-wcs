@@ -127,27 +127,5 @@ input_files.sort.chunk { |file| File.basename(file).split('-')[0..-3].join('-') 
     coverage
   end
 
-  # Create layer group for coverages, use group name for layer group
-  group_name = group.split('/').last
-  layer_group = GEOSERVER.create_layer_group(workspace.path, {
-    name: group_name,
-    mode: "NAMED",
-    title: group_name,
-    abstractTxt: "Merged GeoCells of same Dataset/Component Selectors",
-    workspace: {
-      href: "#{workspace.path}.json",
-      name: workspace[:name]
-    },
-    publishables: {
-      published: coverages.collect { |coverage|
-        {
-          "@type": "layer",
-          href: "#{coverage.path}.json",
-          name: "#{workspace[:name]}:#{coverage[:name]}"
-        }
-      }
-    }
-  })
-  puts "Layer group created."
   puts ""
 end

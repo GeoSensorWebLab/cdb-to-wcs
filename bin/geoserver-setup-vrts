@@ -28,7 +28,7 @@ rescue URI::InvalidURIError => e
 end
 
 # Count number of input files
-input_files = Dir.glob(TILES_PATH + "/*")
+input_files = Dir.glob(TILES_PATH + "/*.vrt")
 
 if input_files.length == 0
   puts "No input files in #{TILES_PATH}, exiting now."

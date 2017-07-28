@@ -42,13 +42,14 @@ def add_overview(raster)
   puts "Adding overviews to #{raster}"
   start_size = human_size(File.size(raster))
 
-  if raster.include?("004")
-    compress = "JPEG"
+  # Use different compression for imagery (004) datasets
+  options = if raster.include?("004")
+    "--config COMPRESS_OVERVIEW JPEG -r cubicspline"
   else
-    compress = "LZW"
+    "--config COMPRESS_OVERVIEW LZW -r cubic"
   end
 
-  addo = Mixlib::ShellOut.new("gdaladdo --config COMPRESS_OVERVIEW #{compress} \"#{raster}\" 2 4 8 16 32", live_stdout: $stdout, live_stderr: $stderr, timeout: 7200)
+  addo = Mixlib::ShellOut.new("gdaladdo #{options} \"#{raster}\" 2 4 8 16 32", live_stdout: $stdout, live_stderr: $stderr, timeout: 72000)
   addo.run_command
 
   end_size = human_size(File.size(raster))

@@ -4,6 +4,8 @@ Reads a CDB for coverages, mosaics them into temporary files, imports them into 
 
 I recommend using [QGIS](http://qgis.org/en/site/) as a testing client to preview rasters generated with `cdb-mosaic`, and to preview rasters from the GeoServer WCS.
 
+These scripts require Ruby 2.4.0 or newer to run.
+
 ## Usage
 
 ### cdb-addo
